@@ -18,9 +18,15 @@ Using [pip](https://pypi.python.org/pypi/pip), the latter two can be installed v
 
 ###Usage
 
-See output of `python calib_video_opencv.py --help` (again, python 3 is usually envoked via `python3` on Linux). In most linux/unix shells, you can also run `./calib_video_opencv.py --help` provided you grant the file necessary permissions.
+See output of `python calib_video_opencv.py --help` (again, python 3 is usually envoked via `python3` on Linux). In most Linux/Unix shells, you can also run `./calib_video_opencv.py --help` provided you grant the file necessary permissions.
+
+#####The provided calibration board
 
 The default calibration board provided (checkerboard.pdf) is a small 9x6 checkerboard that can be easily printed on 8.5x11" US Letter paper or standard A4 paper. Print without scaling, and double-check resulting square size (against the default program settings). Checkerboard square dimensions and size can be set as command-line arguments or via settings file (see above and below).
+
+#####Using the resulting calibration file
+
+The resulting calibration file can be read back in by adapting the same python code (check the XML module), but the format is also fully-compatible with OpenCV's XML input-output utilities, so you can read it from your C++ OpenCV applications or libraries.
 
 ###What's so powerful about it
 
@@ -35,7 +41,7 @@ Finally, because there are so many command-line options, there is a simple way t
 ###Calibration Tips
 Calibration experts: skip this section.
 
-The provided tiny calibration board will only work well for calibrating at short distances. I recommend a larger calibration board, with larger and more squares for greater distances. Any calibration board should be snugly mounted on a completely flat, unbending surface. During calibration, aim for variety of angles and positions (including depth) of the board within the image frame. Calibration of cameras with autofocus is not supported, since the algorithm assumes camera intrinsics (inculding focal distance) are static. On such cameras, you have to find a way to fix the focus. Also, keep in mind, calibration process does not yield acutal focal length (look to your camera manufacturer for that information, as well as the actual metric size of the image sensor).
+The provided tiny calibration board will only work well for calibrating at short distances (within half a meter or so). I recommend a larger calibration board, with larger and more squares for greater distances. Any calibration board should be snugly mounted on a completely flat, unbending surface. During calibration, aim for variety of angles and positions (including depth) of the board within the image frame. Calibration of cameras with autofocus is not supported, since the algorithm assumes camera intrinsics (inculding focal distance) are static. On such cameras, you have to find a way to fix the focus. Also, keep in mind, calibration process does not yield acutal focal length (look to your camera manufacturer for that information, as well as the actual metric size of the image sensor).
 
 ###OpenCV-related caveats
 
