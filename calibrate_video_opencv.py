@@ -180,12 +180,13 @@ def main(argv=None):
                         help="maximum number of iterations for the stereo"+
                         " calibration (optimization) loop", type=int, required = False, 
                         default=defaults[Setting.max_iterations.name])
-    parser.add_argument("-ds", "--" + Setting.precalibrate_solo.name, help="pre-stereo_calibrate each camera "+
+    parser.add_argument("-ds", "--" + Setting.precalibrate_solo.name, help="calibrate each camera "+
                         "individually (in case of stereo calibration) "+
                         "first, then perform stereo calibration",action='store_true', required = False, 
                         default=defaults[Setting.precalibrate_solo.name])
     parser.add_argument("-dr", "--" + Setting.use_rational_model.name,
-                        help="Use the newer OpenCV rational model (8 distorition coefficients w/ tangential, 6 without)", 
+                        help="Use the newer OpenCV rational model (8 distorition coefficients"+
+                        " w/ tangential ones, 6 without)", 
                         action='store_true', required = False, 
                         default=defaults[Setting.use_rational_model.name])
     parser.add_argument("-dt", "--" + Setting.use_tangential_coeffs.name, action='store_true',
