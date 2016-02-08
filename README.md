@@ -14,7 +14,7 @@ Using [pip](https://pypi.python.org/pypi/pip), the latter two can be installed v
 * `pip install lxml`
 * `pip install pyyaml`
 
-**Note**: on many Linux distributions, i.e. Ubuntu-based, pip for python3 is envoked with the `pip3` command instead of `pip`.
+**Note**: on many Linux distributions, i.e. Ubuntu-based, pip for python3 is envoked with the `pip3` command instead of `pip`. It is also recommended to install `libyaml` prior to installing `pyyaml` if it is easy to do so; on Debian-based you can try `sudo apt-get install libyaml-dev`.
 
 ###Usage
 
