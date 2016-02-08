@@ -227,6 +227,8 @@ def main(argv=None):
     if(args.save_settings and args.settings_file):
         setting_dict = vars(args)
         file_stream = open(args.settings_file, "w", encoding="utf-8")
+        del setting_dict[Setting.save_settings.name]
+        del setting_dict[Setting.settings_file.name]
         dump(setting_dict, file_stream, Dumper=Dumper)
         file_stream.close()
     
