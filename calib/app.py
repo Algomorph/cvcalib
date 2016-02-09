@@ -138,15 +138,15 @@ class CalibrateVideoApplication:
 
     def load_frame_images(self):
         print("Loading frames from '{0:s}'".format(self.full_frame_folder_path))
-        files = [f for f in os.listdir(self.full_frame_folder_path) 
+        all_files = [f for f in os.listdir(self.full_frame_folder_path) 
                  if osp.isfile(osp.join(self.full_frame_folder_path,f)) and f.endswith(".png")]
-        files.sort()
+        all_files.sort()
         
         usable_frame_ct = sys.maxsize
         
         for camera in self.cameras:
             #assume matching numbers in corresponding left & right files
-            files = [f for f in files if f.startswith(camera.name)]
+            files = [f for f in all_files if f.startswith(camera.name)]
             cam_frame_ct = sys.maxsize
             for ix_pair in range(len(files)):
                 #TODO: assumes there is the same number of frames for all videos, and all frame
