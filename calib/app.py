@@ -7,7 +7,7 @@ import os
 import os.path as osp
 import cv2#@UnresolvedImport
 import numpy as np
-from calib import utils as cutils
+from calib import calib as cutils
 from calib import io as cio
 from calib.data import Video
 import datetime
