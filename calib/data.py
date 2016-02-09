@@ -17,10 +17,10 @@
  limitations under the License.
 '''
 import calib.xml as xml
-from lxml import etree
+from lxml import etree#@UnresolvedImport
 import numpy as np
 import os.path as osp
-import cv2
+import cv2#@UnresolvedImport
 
 
 def _resolution_from_xml(element):
@@ -48,7 +48,7 @@ def _error_and_time_to_xml(element, error, time):
     time_element.text = str(time) 
     
     
-class CameraInfo(object):
+class Video(object):
     def __init__(self, directory, filename, index = 0):
         self.index = index
         self.cap = None
@@ -93,7 +93,7 @@ class CameraInfo(object):
 
 class CameraCalibrationInfo(object):
     '''
-    Represents cameras of a camera, i.e. intrinsic matrix & distortion coefficients
+    Represents videos of a camera, i.e. intrinsic matrix & distortion coefficients
     '''
     def __init__(self, resolution, intrinsic_mat = None, 
                  distortion_coeffs = np.zeros(8,np.float64), 
@@ -157,16 +157,16 @@ class StereoCalibrationInfo(object):
     _unnamed_instance_counter = 0
     '''
     Represents the results of a stereo calibration procedure, including all the information
-    necessary to stereo-rectify images from the corresponding cameras.
-    Camera cameras <left,right> are always represented by indices <0,1> respectively
+    necessary to stereo-rectify images from the corresponding videos.
+    Camera videos <left,right> are always represented by indices <0,1> respectively
     '''
     def __init__(self, intrinsics, rotation = np.eye(3,dtype=np.float64), 
                  translation = np.zeros(3,np.float64), essential_mat = np.eye(3,dtype=np.float64), 
                  fundamental_mat = np.eye(3,dtype=np.float64), error = -1.0, time = 0.0, _id = None):
         '''
         Constructor
-        @type cameras: tuple[calib.data.CameraCalibrationInfo]
-        @param cameras: tuple composed of two cameras of the stereo camera pair.
+        @type videos: tuple[calib.data.CameraCalibrationInfo]
+        @param videos: tuple composed of two videos of the stereo camera pair.
         @type rotation: numpy.ndarray
         @param rotation: 3x3 rotation matrix from camera 0 to camera 1
         @type translation: numpy.ndarray
@@ -176,7 +176,7 @@ class StereoCalibrationInfo(object):
         @type  time: float
         @param time: calibration time in seconds
         '''
-        self.cameras = intrinsics
+        self.videos = intrinsics
         self.rotation = rotation
         self.translation = translation
         self.essential_mat = essential_mat
@@ -198,8 +198,8 @@ class StereoCalibrationInfo(object):
         stereo_calib_elem = etree.SubElement(root_element, "StereoCalibrationInfo",
                                              attrib={"id":str(self.id)})
         cameras_elem = etree.SubElement(stereo_calib_elem, "Cameras")
-        self.cameras[0].to_xml(cameras_elem)
-        self.cameras[1].to_xml(cameras_elem)
+        self.videos[0].to_xml(cameras_elem)
+        self.videos[1].to_xml(cameras_elem)
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.rotation, "rotation")
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.translation, "translation")
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.essential_mat, "essential_mat")
@@ -211,7 +211,7 @@ class StereoCalibrationInfo(object):
         return (("Stereo Calibration Info, id: {0:s}\n-----CAM0-----\n{1:s}\n-----CAM1-----\n{2:s}"+
                  "\n--------------\nRotation:\n{3:s}\nTranslation:\n{4:s}\nEssential Matrix:\n{5:s}"
                  +"\nFundamental Matrix:\n{6:s}\nError: {7:f}\nTime: {8:f}")
-                .format(str(self.id),str(self.cameras[0]),str(self.cameras[1]),str(self.rotation),
+                .format(str(self.id),str(self.videos[0]),str(self.videos[1]),str(self.rotation),
                         str(self.translation),str(self.essential_mat),str(self.fundamental_mat),
                         self.error,self.time))
         

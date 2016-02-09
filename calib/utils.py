@@ -28,20 +28,20 @@ def generate_preview(stereo_calib_info, test_im_left, test_im_right):
     im_size = test_im_left.shape
     new_size = (int(im_size[1]*1.5),int(im_size[0]*1.5))
     R1, R2, P1, P2 = \
-    cv2.stereoRectify(cameraMatrix1=stereo_calib_info.cameras[0].intrinsic_mat, 
-                      distCoeffs1  =stereo_calib_info.cameras[0].distortion_coeffs, 
-                      cameraMatrix2=stereo_calib_info.cameras[1].intrinsic_mat,
-                      distCoeffs2  =stereo_calib_info.cameras[1].distortion_coeffs, 
+    cv2.stereoRectify(cameraMatrix1=stereo_calib_info.videos[0].intrinsic_mat, 
+                      distCoeffs1  =stereo_calib_info.videos[0].distortion_coeffs, 
+                      cameraMatrix2=stereo_calib_info.videos[1].intrinsic_mat,
+                      distCoeffs2  =stereo_calib_info.videos[1].distortion_coeffs, 
                       imageSize=im_size, 
                       R=stereo_calib_info.rotation,
                       T=stereo_calib_info.translation, 
                       flags=cv2.CALIB_ZERO_DISPARITY, 
                       newImageSize=new_size)[0:4]
-    map1x, map1y = cv2.initUndistortRectifyMap(stereo_calib_info.cameras[0].intrinsic_mat, 
-                                               stereo_calib_info.cameras[0].distortion_coeffs, 
+    map1x, map1y = cv2.initUndistortRectifyMap(stereo_calib_info.videos[0].intrinsic_mat, 
+                                               stereo_calib_info.videos[0].distortion_coeffs, 
                                                R1, P1, new_size, cv2.CV_32FC1)
-    map2x, map2y = cv2.initUndistortRectifyMap(stereo_calib_info.cameras[1].intrinsic_mat, 
-                                               stereo_calib_info.cameras[1].distortion_coeffs, 
+    map2x, map2y = cv2.initUndistortRectifyMap(stereo_calib_info.videos[1].intrinsic_mat, 
+                                               stereo_calib_info.videos[1].distortion_coeffs, 
                                                R2, P2, new_size, cv2.CV_32FC1)
     rect_left = cv2.remap(test_im_left, map1x, map1y, cv2.INTER_LINEAR)
     rect_right = cv2.remap(test_im_right, map2x, map2y, cv2.INTER_LINEAR)
@@ -69,8 +69,8 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
                                              data.CameraCalibrationInfo(resolution, index=1)), 
                                              _id=signature)
     #shorten notation later in the code
-    cam0 = result.cameras[0]
-    cam1 = result.cameras[1]
+    cam0 = result.videos[0]
+    cam1 = result.videos[1]
     
     #OpenCV prefers the Width x Height as "Size" to Height x Width
     frame_dims = (resolution[1],resolution[0])

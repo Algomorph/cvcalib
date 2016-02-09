@@ -9,7 +9,7 @@ import cv2#@UnresolvedImport
 import numpy as np
 from calib import utils as cutils
 from calib import io as cio
-from calib.data import CameraInfo
+from calib.data import Video
 import datetime
 import sys
 import re
@@ -18,22 +18,22 @@ import re
 class CalibrateVideoApplication:
     min_frames_to_calibrate = 4
     def __init__(self,args):
-        self.camera = CameraInfo(args.folder,args.videos[0], 0)
+        self.video = Video(args.folder,args.videos[0], 0)
         
         if(len(args.videos) > 1):
-            self.cameras = [self.camera, CameraInfo(args.folder, args.videos[1], 1)]
+            self.videos = [self.video, Video(args.folder, args.videos[1], 1)]
             self.__automatic_filter_basic = self.__automatic_filter_basic_stereo
             self.__automatic_filter = self.__automatic_filter_stereo
             if(len(args.preview_files) != len(args.videos)):
                 raise ValueError("There must be two preview file arguments passed in for stereo calibration.")
-            self.total_frames = min(self.cameras[0].frame_count,self.cameras[1].frame_count)
-            if(self.cameras[0].frame_dims != self.cameras[1].frame_dims):
+            self.total_frames = min(self.videos[0].frame_count,self.videos[1].frame_count)
+            if(self.videos[0].frame_dims != self.videos[1].frame_dims):
                 raise ValueError("The videos must have the same resolution.")
         else:
-            self.cameras = [self.camera]
+            self.videos = [self.video]
             self.__automatic_filter_basic = self.__automatic_filter_basic_mono
             self.__automatic_filter = self.__automatic_filter_mono
-            self.total_frames = self.camera.frame_count
+            self.total_frames = self.video.frame_count
         
         self.full_frame_folder_path = osp.join(args.folder,args.filtered_image_folder)
         #if image folder (for captured frames) doesn't yet exist, create it
@@ -55,7 +55,7 @@ class CalibrateVideoApplication:
             self.frame_numbers = set(npzfile["frame_numbers"])
             
         self.criteria_subpix = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
-        self.frame_dims = self.camera.frame_dims
+        self.frame_dims = self.video.frame_dims
         
         
         self.pixel_difference_factor = 1.0 / (self.board_dims[0] * self.board_dims[1] * 3 * 256.0)
@@ -70,9 +70,9 @@ class CalibrateVideoApplication:
         self.args = args
     
     def __automatic_filter_stereo(self, verbose = False):
-        l_frame = self.cameras[0].frame
-        lframe_prev = self.cameras[0].previous_frame
-        r_frame = self.cameras[1].frame
+        l_frame = self.videos[0].frame
+        lframe_prev = self.videos[0].previous_frame
+        r_frame = self.videos[1].frame
 
         sharpness = min(cv2.Laplacian(l_frame, cv2.CV_64F).var(), 
                         cv2.Laplacian(r_frame, cv2.CV_64F).var())
@@ -90,14 +90,14 @@ class CalibrateVideoApplication:
         if not (lfound and rfound):
             return False
         
-        self.cameras[0].current_corners = lcorners
-        self.cameras[1].current_corners = rcorners
+        self.videos[0].current_corners = lcorners
+        self.videos[1].current_corners = rcorners
         
         return True
     
     def __automatic_filter_mono(self):
-        frame = self.camera.frame
-        frame_prev = self.camera.previous_frame
+        frame = self.video.frame
+        frame_prev = self.video.previous_frame
         sharpness = cv2.Laplacian(frame,cv2.CV_64F).var()
         if sharpness < self.args.sharpness_threshold:
             return False
@@ -111,29 +111,29 @@ class CalibrateVideoApplication:
         if not found:
             return False
         
-        self.camera.current_corners = corners
+        self.video.current_corners = corners
         
         return True
         
     
     def __automatic_filter_basic_stereo(self):
-        l_frame = self.cameras[0].frame
-        r_frame = self.cameras[1].frame
+        l_frame = self.videos[0].frame
+        r_frame = self.videos[1].frame
         
         lfound,lcorners = cv2.findChessboardCorners(l_frame,self.board_dims)
         rfound,rcorners = cv2.findChessboardCorners(r_frame,self.board_dims)
         if not (lfound and rfound):
             return False
         
-        self.cameras[0].current_corners = lcorners
-        self.cameras[1].current_corners = rcorners
+        self.videos[0].current_corners = lcorners
+        self.videos[1].current_corners = rcorners
         
         return True
     
     def __automatic_filter_basic_mono(self):
-        frame = self.camera.frame
+        frame = self.video.frame
         found,corners = cv2.findChessboardCorners(frame,self.board_dims)  
-        self.camera.current_corners = corners
+        self.video.current_corners = corners
         return found
 
     def load_frame_images(self):
@@ -144,9 +144,9 @@ class CalibrateVideoApplication:
         
         usable_frame_ct = sys.maxsize
         
-        for camera in self.cameras:
+        for video in self.videos:
             #assume matching numbers in corresponding left & right files
-            files = [f for f in all_files if f.startswith(camera.name)]
+            files = [f for f in all_files if f.startswith(video.name)]
             cam_frame_ct = 0
             for ix_pair in range(len(files)):
                 #TODO: assumes there is the same number of frames for all videos, and all frame
@@ -157,7 +157,7 @@ class CalibrateVideoApplication:
                     raise ValueError("Could not find corners in image '{0:s}'".format(files[ix_pair]))
                 grey = cv2.cvtColor(frame,cv2.COLOR_BGR2GRAY)
                 cv2.cornerSubPix(grey, lcorners, (11,11),(-1,-1),self.criteria_subpix)
-                camera.imgpoints.append(lcorners)
+                video.imgpoints.append(lcorners)
                 cam_frame_ct+=1
             usable_frame_ct = min(usable_frame_ct,cam_frame_ct)
         for i_frame in range(usable_frame_ct):#@UnusedVariable
@@ -169,21 +169,21 @@ class CalibrateVideoApplication:
             print ("Usable frames: {0:d} ({1:.3%})"
                    .format(usable_frame_ct, float(usable_frame_ct)/(i_frame+1)))
             
-        for camera in self.cameras:
-            grey_frame = cv2.cvtColor(camera.frame,cv2.COLOR_BGR2GRAY)
-            cv2.cornerSubPix(grey_frame, camera.current_corners, (11,11),(-1,-1),self.criteria_subpix)
+        for video in self.videos:
+            grey_frame = cv2.cvtColor(video.frame,cv2.COLOR_BGR2GRAY)
+            cv2.cornerSubPix(grey_frame, video.current_corners, (11,11),(-1,-1),self.criteria_subpix)
             if(self.args.save_images):
                 fname = (osp.join(self.full_frame_folder_path,
-                               "{0:s}{1:04d}{2:s}".format(camera.name,i_frame,".png")))
-                cv2.imwrite(fname, camera.frame)
-            camera.imgpoints.append(camera.current_corners)
+                               "{0:s}{1:04d}{2:s}".format(video.name,i_frame,".png")))
+                cv2.imwrite(fname, video.frame)
+            video.imgpoints.append(video.current_corners)
         self.objpoints.append(self.board_object_corner_set)
     
     def filter_frame_manually(self):
-        if len(self.cameras) == 2:
-            display_image = np.hstack((self.cameras[0].frame, self.cameras[1].frame))
+        if len(self.videos) == 2:
+            display_image = np.hstack((self.videos[0].frame, self.videos[1].frame))
         else:
-            display_image = self.cameras[0].frame
+            display_image = self.videos[0].frame
         cv2.imshow("frame", display_image)
         key = cv2.waitKey(0) & 0xFF
         add_corners = (key == ord('a'))
@@ -194,10 +194,10 @@ class CalibrateVideoApplication:
         skip_interval = int(self.total_frames / self.args.frame_count_target)
 
         continue_capture = 1
-        for camera in self.cameras:
+        for video in self.videos:
             #init capture
-            camera.read_next_frame()
-            continue_capture &= camera.more_frames_remain
+            video.read_next_frame()
+            continue_capture &= video.more_frames_remain
             
         usable_frame_ct = 0
         i_start_frame = 0
@@ -209,8 +209,8 @@ class CalibrateVideoApplication:
             add_corners = False
             i_frame = i_start_frame
             i_end_frame = i_start_frame + skip_interval
-            for camera in self.cameras:
-                camera.scroll_to_frame(i_frame)
+            for video in self.videos:
+                video.scroll_to_frame(i_frame)
             while not add_corners and i_frame < i_end_frame and continue_capture:
                 add_corners = self.__automatic_filter()
                 if self.args.manual_filter:
@@ -220,14 +220,14 @@ class CalibrateVideoApplication:
                     usable_frame_ct += 1
                     self.add_corners(usable_frame_ct, report_interval, i_frame)
                     #log last usable **filtered** frame
-                    for camera in self.cameras:
-                        camera.set_previous_to_current()
+                    for video in self.videos:
+                        video.set_previous_to_current()
   
                 i_frame += 1
                 continue_capture = 1
-                for camera in self.cameras:
-                    camera.read_next_frame()
-                    continue_capture &= camera.more_frames_remain
+                for video in self.videos:
+                    video.read_next_frame()
+                    continue_capture &= video.more_frames_remain
                 continue_capture &= (not (self.args.manual_filter and key == 27))
             i_start_frame = i_end_frame
             
@@ -239,12 +239,12 @@ class CalibrateVideoApplication:
             
     def run_capture(self):
         continue_capture = 1
-        for camera in self.cameras:
+        for video in self.videos:
             #just in case we're running capture again
-            camera.scroll_to_beginning()
+            video.scroll_to_beginning()
             #init capture
-            camera.read_next_frame()
-            continue_capture &= camera.more_frames_remain
+            video.read_next_frame()
+            continue_capture &= video.more_frames_remain
         
         report_interval = 10
         i_frame = 0
@@ -262,14 +262,14 @@ class CalibrateVideoApplication:
                     self.add_corners(usable_frame_ct, report_interval, i_frame)
                     
                     #log last usable **filtered** frame
-                    for camera in self.cameras:
-                        camera.set_previous_to_current()
+                    for video in self.videos:
+                        video.set_previous_to_current()
       
             i_frame += 1
             continue_capture = 1
-            for camera in self.cameras:
-                camera.read_next_frame()
-                continue_capture &= camera.more_frames_remain
+            for video in self.videos:
+                video.read_next_frame()
+                continue_capture &= video.more_frames_remain
             continue_capture &= (not (self.args.manual_filter and key == 27))
             
         if self.args.manual_filter:
@@ -285,8 +285,8 @@ class CalibrateVideoApplication:
             imgpoints, self.objpoints, usable_frame_ct =\
             cio.load_corners(self.full_corners_path)
             usable_frame_ct = len(self.objpoints)
-            for camera in self.cameras:
-                camera.imgpoints = imgpoints[camera.index]
+            for video in self.videos:
+                video.imgpoints = imgpoints[video.index]
         else:
             if(self.args.load_images):
                 usable_frame_ct = self.load_frame_images()
@@ -297,8 +297,8 @@ class CalibrateVideoApplication:
             if self.args.save_corners:
                 print("Saving corners to {0:s}".format(self.full_corners_path))
                 file_dict = {}
-                for camera in self.cameras:
-                    file_dict["imgpoints"+str(camera.index)] = camera.imgpoints
+                for video in self.videos:
+                    file_dict["imgpoints"+str(video.index)] = video.imgpoints
                 file_dict["object_point_set"]=self.board_object_corner_set
                 np.savez_compressed(self.full_corners_path,**file_dict)
                 
@@ -314,9 +314,9 @@ class CalibrateVideoApplication:
             return
         print ("Calibrating for max. {0:d} iterations...".format(self.args.max_iterations))
         
-        if len(self.cameras) > 1:
-            calibration_result = cutils.stereo_calibrate(self.cameras[0].imgpoints, 
-                                                         self.cameras[1].imgpoints, 
+        if len(self.videos) > 1:
+            calibration_result = cutils.stereo_calibrate(self.videos[0].imgpoints, 
+                                                         self.videos[1].imgpoints, 
                                                          self.objpoints, self.frame_dims, 
                                                          self.args.use_fisheye_model, 
                                                          self.args.use_rational_model, 
@@ -346,8 +346,8 @@ class CalibrateVideoApplication:
                 flags += cv2.CALIB_ZERO_TANGENT_DIST
             if self.args.use_rational_model:
                 flags += cv2.CALIB_RATIONAL_MODEL
-            calibration_result = cutils.calibrate(self.objpoints, self.camera.imgpoints, flags, 
-                                                  criteria, self.camera.calib)
+            calibration_result = cutils.calibrate(self.objpoints, self.video.imgpoints, flags, 
+                                                  criteria, self.video.calib)
         if not self.args.skip_printing_output:
             print(calibration_result)
         if not self.args.skip_saving_output:
