@@ -147,7 +147,7 @@ class CalibrateVideoApplication:
         for camera in self.cameras:
             #assume matching numbers in corresponding left & right files
             files = [f for f in files if f.startswith(camera.name)]
-            cam_frame_ct = 0
+            cam_frame_ct = sys.maxsize
             for ix_pair in range(len(files)):
                 #TODO: assumes there is the same number of frames for all videos, and all frame
                 #indexes match
