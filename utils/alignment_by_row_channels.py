@@ -1,3 +1,9 @@
+################################################
+# Original author of this utility: Allison Deal
+# Code adapted from her VideoSync project at:
+# https://github.com/allisonnicoledeal/VideoSync
+################################################
+
 import scipy.io.wavfile
 import numpy as np
 from subprocess import call
@@ -126,7 +132,7 @@ def find_delay(time_pairs):
 
 
 # Find time delay between two video files
-def align(video1, video2, dir, fft_bin_size=1024, overlap=0, box_height=512, box_width=43, samples_per_box=7):
+def find_time_offset(video1, video2, dir, fft_bin_size=1024, overlap=0, box_height=512, box_width=43, samples_per_box=7):
     # Process first file
     wavfile1 = extract_audio(dir, video1)
     raw_audio1, rate = read_audio(wavfile1)
@@ -162,7 +168,7 @@ def align(video1, video2, dir, fft_bin_size=1024, overlap=0, box_height=512, box
 # audio1 = "DanielZ5PPlk53IMY.mp4"
 # audio2 = "Daniel08ycq2T_ab4.mp4"
 # directory = "./uploads/"
-# t = align(audio1, audio2, directory)
+# t = find_time_offset(audio1, audio2, directory)
 # print t
 
 

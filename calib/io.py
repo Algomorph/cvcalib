@@ -38,7 +38,20 @@ def load_opencv_stereo_calibration(path):
     '''
     tree = etree.parse(path)
     stereo_calib_elem = tree.find("StereoCalibrationInfo")
-    return data.StereoCalibrationInfo(stereo_calib_elem)
+    return data.StereoCalibrationInfo.from_xml(stereo_calib_elem)
+
+def load_opencv_signle_calibration(path):
+    '''
+    Load single-camera calibration information from xml file
+    @type path: str
+    @param path: path to xml file
+    @return calibration info: loaded from the given xml file
+    @rtype calib.data.CameraCalibrationInfo
+    '''
+    tree = etree.parse(path)
+    stereo_calib_elem = tree.find("CameraCalibrationInfo")
+    return data.CameraCalibrationInfo.from_xml(stereo_calib_elem)
+
 
 def save_opencv_stereo_calibration(path, stereo_calibration_info):
     root = etree.Element("opencv_storage")
