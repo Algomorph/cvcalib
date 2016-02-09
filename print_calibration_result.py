@@ -1,3 +1,4 @@
+#!/usr/bin/python3
 import calib.io as cio
 import argparse
 import sys
@@ -23,5 +24,6 @@ def main(argv=None):
     
 
 if __name__ == "__main__":
+    
     sys.exit(main())
     

@@ -1,10 +1,29 @@
 #!/usr/bin/python3
+'''
+@author: Gregory Kramida
+@licence: Apache v2
+
+Copyright 2016 Gregory Kramida
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+'''
 
 import sys
 import os.path as osp
 import argparse as ap
 from enum import Enum
 from calib.app import CalibrateVideoApplication
+from args import required_length
 from yaml import load, dump
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -41,16 +60,6 @@ class Setting(Enum):
     filtered_image_folder = "filtered_image_folder"
     save_images = "save_images"
     load_images = "load_images"
-
-def required_length(nmin,nmax):
-    class RequiredLength(ap.Action):
-        def __call__(self, conf_parser, args, values, option_string=None):
-            if not nmin<=len(values)<=nmax:
-                msg='argument "{f}" requires between {nmin} and {nmax} arguments'.format(
-                    f=self.dest,nmin=nmin,nmax=nmax)
-                raise ap.ArgumentTypeError(msg)
-            setattr(args, self.dest, values)
-    return RequiredLength
 
 def main(argv=None):
     defaults = {
@@ -164,11 +173,11 @@ def main(argv=None):
                         help="file (relative to 'folder') where to load from / save to inner corner positions",
                          required = False, 
                         default=defaults[Setting.corners_file.name])
-    parser.add_argument("-s", "--" + Setting.save_corners.name, action='store_true',
+    parser.add_argument("-cs", "--" + Setting.save_corners.name, action='store_true',
                         help = "save the gathered locations of inner board corners.",
                         required = False, 
                         default=defaults[Setting.save_corners.name])
-    parser.add_argument("-l", "--" + Setting.load_corners.name, action='store_true',
+    parser.add_argument("-cl", "--" + Setting.load_corners.name, action='store_true',
                         help = "load the previously-gathered locations of inner board corners"+
                         " (skips gathering frame data)", 
                         required = False, 
