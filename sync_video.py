@@ -24,6 +24,7 @@ import argparse
 import sys
 from sync.app import SyncVideoApp
 from enum import Enum
+from common.args import boolarg
 
 class Setting(Enum):
     #settings_file = "settings_file"
@@ -36,6 +37,8 @@ class Setting(Enum):
     calibration_clip = "calibration_clip"
     calibration_seek_interval = "calibration_seek_interval"
     trim_end = "trim_end"
+    flip = "flip"
+    preserve_audio = "preserve_audio"
 
 def main(argv=None):
     defaults = {
@@ -43,12 +46,14 @@ def main(argv=None):
        #Setting.save_settings.name:False,
        Setting.folder.name:"./",
        Setting.videos.name: ["left.mp4","right.mp4"],
-       Setting.output.name: ["out_left.mp4","out_right.mp4"],
+       Setting.output.name: [None,None],
        Setting.board_width.name: 9,
        Setting.board_height.name: 6,
-       Setting.calibration_clip.name: False,
+       Setting.calibration_clip.name: True,
        Setting.calibration_seek_interval.name: 1.0,
-       Setting.trim_end.name:20.0
+       Setting.trim_end.name:20.0,
+       Setting.flip.name: [True, False],
+       Setting.preserve_audio.name: False
        }
     
     parser = argparse.ArgumentParser(description='Synchronize two videos based on their sound.')
@@ -66,9 +71,11 @@ def main(argv=None):
                         required=False, default=defaults[Setting.output.name])
     
     #============== RANGE CLIPPING ================================================================#
-    parser.add_argument("-cc", "--" + Setting.calibration_clip.name,
-                        help="Seek out where a calibration board first and last appears, and clip "+
-                        "using this range in addition to the offset.", action="store_true",
+    parser.add_argument("-ncc", "--no-" + Setting.calibration_clip.name, dest=Setting.calibration_clip.name,
+                        help="Use this option to disable calibration mode."+
+                        "In calibration clip mode (default), the algorithm seeks out when a "+
+                        "calibration board first and last appears, and clip "+
+                        "using this range in addition to the offset.", action="store_false",
                         default=defaults[Setting.calibration_clip.name])
     
     parser.add_argument("-csi", "--" + Setting.calibration_seek_interval.name, type = float,
@@ -90,6 +97,14 @@ def main(argv=None):
                         help="(Calibration only) checkerboard inner corner count up (height)",
                         required = False,default=defaults[Setting.board_height.name], type=int)
     
+    #============== CODEC & FILTER PARAMETERS =====================================================#
+    parser.add_argument("--" + Setting.flip.name,metavar="FLIP_VIDEO", nargs=2,
+                        type=boolarg,
+                        help="Flip or don't flip videos in the order (left, right).",
+                        required=False, default=defaults[Setting.flip.name])
+    parser.add_argument("-pa", "--" + Setting.preserve_audio.name, dest=Setting.preserve_audio.name,
+                        help="Preserve audio track in recoded video.", action="store_true",
+                        default=defaults[Setting.preserve_audio.name])
     
 
     args = parser.parse_args()

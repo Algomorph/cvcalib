@@ -20,6 +20,7 @@ limitations under the License.
 
 from sync.offset import find_time_offset
 from sync.ranges import find_calibration_conversion_range, find_offset_range
+from sync.recode import recode_ffmpeg
 
 class SyncVideoApp(object):
     '''
@@ -31,6 +32,15 @@ class SyncVideoApp(object):
         '''
         #(preparatory work goes here)
         self.args = args
+        if(args.output[0] == None):
+            for ix in range(0,len(args.videos)):
+                if("_raw" in args.videos[ix] and len(args.videos[ix]) > 4):
+                    args.output[ix] = args.videos[ix].replace("_raw", "")
+                else:
+                    args.output[ix] = args.videos[ix][:-4] + "_out.mp4"  
+            print("Output filenames not set.\n  Setting output filenames to:"+
+                  " {0:s}. ATTENTION: will overwrite.".format(str(args.output)))
+                
         self.board_dims = (args.board_width,args.board_height)
         
     def run_sync(self):
@@ -45,7 +55,8 @@ class SyncVideoApp(object):
         else:
             frame_ranges, time_ranges = find_offset_range(args.videos, args.folder, offset, args.trim_end)
         print("Final clip ranges (in frames): {0:s}".format(str(frame_ranges)))
+        recode_ffmpeg(args.videos, args.folder, time_ranges, args.flip, args.output, args.preserve_audio)
         
-        time_ranges
+        
         
         

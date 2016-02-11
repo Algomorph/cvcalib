@@ -21,7 +21,6 @@ limitations under the License.
 
 from calib.data import Video
 import common.filter as cf
-#import cv2#@UnresolvedImport
 
 def __sync_ranges(frame_durations, framerates, frame_ranges, frame_offsets):
     '''
@@ -40,7 +39,7 @@ def __sync_ranges(frame_durations, framerates, frame_ranges, frame_offsets):
         fps = framerates[ix_range] 
         frame_range = (frame_offset + post_offset_bounds[0], frame_offset + post_offset_bounds[1])
         frame_ranges.append(frame_range)
-        time_ranges.append((frame_range[0]*fps, frame_range[1]*fps))
+        time_ranges.append((frame_range[0]/fps, frame_range[1]/fps))
     return frame_ranges, time_ranges
 
 def find_offset_range(video_filenames, folder, offset, cut_off_end = 2.0):
@@ -62,7 +61,7 @@ def find_offset_range(video_filenames, folder, offset, cut_off_end = 2.0):
         frame_offsets.append(frame_offset)
         trim_frames = int(video.fps * cut_off_end)
         framerates.append(video.fps)
-        ranges.append(frame_offset, video.frame_count - trim_frames)
+        ranges.append((frame_offset, video.frame_count - trim_frames))
         del video #explicitly release video file
         ix_vid+=1
         

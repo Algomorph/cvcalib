@@ -20,6 +20,7 @@ limitations under the License.
 '''
 
 import argparse
+from ast import literal_eval
 
 def required_length(nmin,nmax):
     class RequiredLength(argparse.Action):
@@ -30,3 +31,13 @@ def required_length(nmin,nmax):
                 raise argparse.ArgumentTypeError(msg)
             setattr(args, self.dest, values)
     return RequiredLength
+
+def boolarg(s):
+    error_msg = "Invalid 'boolarg' format. Accepted values: True, False, 0, 1"
+    try:
+        data = literal_eval(s)
+        if data != True and data != False:
+            raise argparse.ArgumentTypeError(error_msg)
+    except:  # TODO: avoid bare except and handle more specific errors
+        raise argparse.ArgumentTypeError(error_msg)
+    return data     
