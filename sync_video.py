@@ -66,7 +66,7 @@ def main(argv=None):
                         required=False, default=defaults[Setting.output.name])
     
     #============== RANGE CLIPPING ================================================================#
-    parser.add_argument("-cc", "--" + Setting.calibration_clip.name, type = bool,
+    parser.add_argument("-cc", "--" + Setting.calibration_clip.name,
                         help="Seek out where a calibration board first and last appears, and clip "+
                         "using this range in addition to the offset.", action="store_true",
                         default=defaults[Setting.calibration_clip.name])

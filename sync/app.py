@@ -19,7 +19,7 @@ limitations under the License.
 '''
 
 from sync.offset import find_time_offset
-from sync.convert import find_calibration_conversion_range, find_offset_range
+from sync.ranges import find_calibration_conversion_range, find_offset_range
 
 class SyncVideoApp(object):
     '''

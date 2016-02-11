@@ -23,7 +23,6 @@ from calib.data import Video
 import common.filter as cf
 #import cv2#@UnresolvedImport
 
-
 def __sync_ranges(frame_durations, framerates, frame_ranges, frame_offsets):
     '''
     Synchronize frame_ranges, i.e. make sure that frame_ranges match after the offset is applied
