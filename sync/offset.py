@@ -173,7 +173,8 @@ def find_time_offset(video1, video2, folder, fft_bin_size=1024, overlap=0, box_h
     @param box_width width of the frequency constellations
     @param samples_per_box # of frequency samples within each constellation
     @return time offset between the two videos and their frame rate, 
-    in format (offset1, offset2, frame_rate), where one of the offsets is zero
+    in format ((offset1, offset2) frame_rate), where one of the offsets is zero, 
+    the other is how much you need to skip in that video to get to the corresponding point in the other video. 
     @rtype tuple[float]
     '''
     orig_duration = 120
