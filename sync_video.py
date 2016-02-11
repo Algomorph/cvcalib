@@ -31,6 +31,11 @@ class Setting(Enum):
     folder = "folder"
     videos = "videos"
     output = "output"
+    board_width = "board_width"
+    board_height = "board_height"
+    calibration_clip = "calibration_clip"
+    calibration_seek_interval = "calibration_seek_interval"
+    trim_end = "trim_end"
 
 def main(argv=None):
     defaults = {
@@ -39,10 +44,16 @@ def main(argv=None):
        Setting.folder.name:"./",
        Setting.videos.name: ["left.mp4","right.mp4"],
        Setting.output.name: ["out_left.mp4","out_right.mp4"],
+       Setting.board_width.name: 9,
+       Setting.board_height.name: 6,
+       Setting.calibration_clip.name: False,
+       Setting.calibration_seek_interval.name: 1.0,
+       Setting.trim_end.name:20.0
        }
     
     parser = argparse.ArgumentParser(description='Synchronize two videos based on their sound.')
 
+    #============== INPUT / OUTPUT PATHS ==========================================================#
     parser.add_argument("-f", "--" + Setting.folder.name, help="Path to root folder to work in", 
                         required=False, default=defaults[Setting.folder.name])
     parser.add_argument("-v", "--" + Setting.videos.name,metavar="VIDEO", nargs=2,
@@ -53,8 +64,38 @@ def main(argv=None):
                         help="where to output synced stereo video tuple (left, right)"+
                         " relative to the 'folder' argument", 
                         required=False, default=defaults[Setting.output.name])
+    
+    #============== RANGE CLIPPING ================================================================#
+    parser.add_argument("-cc", "--" + Setting.calibration_clip.name, type = bool,
+                        help="Seek out where a calibration board first and last appears, and clip "+
+                        "using this range in addition to the offset.", action="store_true",
+                        default=defaults[Setting.calibration_clip.name])
+    
+    parser.add_argument("-csi", "--" + Setting.calibration_seek_interval.name, type = float,
+                        help="Time intervals (in seconds) to step over during the calibration clip"+
+                        " procedure. Higher values will reduce seek time, but result in coarser "+
+                        " intervals with more potentially usable frames omitted.",
+                        default=defaults[Setting.calibration_seek_interval.name])
+    
+    parser.add_argument("-te", "--" + Setting.trim_end.name, type = float,
+                        help="Time to force-trim away from the end. Typically, relevant for calibration,"+
+                        " where cameras are set down and turned off after capture. Use sparingly otherwise.",
+                        default=defaults[Setting.trim_end.name])
+    
+    #============== BOARD DIMENSIONS ==============================================================#
+    parser.add_argument("-bw", "--" + Setting.board_width.name, 
+                        help="(Calibration only) checkerboard inner corner count across (width)",
+                        required = False, default=defaults[Setting.board_width.name], type=int)
+    parser.add_argument("-bh", "--" + Setting.board_height.name, 
+                        help="(Calibration only) checkerboard inner corner count up (height)",
+                        required = False,default=defaults[Setting.board_height.name], type=int)
+    
+    
 
     args = parser.parse_args()
+    if(len(args.videos) != len(args.output)):
+        raise ValueError("The number of input videos specified does not match the number of specified output files.")
+    
     app = SyncVideoApp(args)
     app.run_sync()
 

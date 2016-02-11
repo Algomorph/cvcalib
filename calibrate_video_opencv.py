@@ -23,7 +23,7 @@ import os.path as osp
 import argparse as ap
 from enum import Enum
 from calib.app import CalibrateVideoApplication
-from args import required_length
+from common.args import required_length
 from yaml import load, dump
 try:
     from yaml import CLoader as Loader, CDumper as Dumper

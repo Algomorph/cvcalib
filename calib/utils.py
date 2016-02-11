@@ -19,11 +19,11 @@ limitations under the License.
 '''
 
 import numpy as np
-
-import cv2#@UnresolvedImport
 import time
 import calib.io as io
 import calib.data as data
+import cv2#@UnresolvedImport
+
 
 def calibrate(objpoints, imgpoints, flags, criteria, calibration_info, verbose = False):
     #OpenCV prefers the width x height as "Size" to height x width

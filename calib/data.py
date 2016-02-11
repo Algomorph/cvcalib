@@ -45,11 +45,16 @@ def _error_and_time_to_xml(element, error, time):
     error_element = etree.SubElement(element,"error")
     error_element.text = str(error)
     time_element = etree.SubElement(element,"time")
-    time_element.text = str(time) 
-    
-    
+    time_element.text = str(time)
+
 class Video(object):
+    '''
+    Represents a video object, a simple convenience wrapper around OpenCV's video_capture
+    '''
     def __init__(self, directory, filename, index = 0):
+        '''
+        Build a camera from the specified file at the specified directory
+        '''
         self.index = index
         self.cap = None
         if filename[-3:] != "mp4":
@@ -64,7 +69,8 @@ class Video(object):
         self.imgpoints = []
         self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),#@UndefinedVariable
                            int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))#@UndefinedVariable
-        self.frame_count = self.cap.get(cv2.CAP_PROP_FRAME_COUNT) #@UndefinedVariable
+        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) #@UndefinedVariable
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
         self.calib = CameraCalibrationInfo(self.frame_dims, index = index )
         if(self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
             self.n_channels = 3
@@ -77,6 +83,19 @@ class Video(object):
     
     def read_next_frame(self):
         self.more_frames_remain, self.frame = self.cap.read()
+    
+    def read_previous_frame(self):
+        '''
+        For traversing the video backwards.
+        '''
+        cur_frame_ix = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
+        if(cur_frame_ix == 0):
+            self.more_frames_remain = False
+            self.frame = None
+            return
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES,cur_frame_ix - 1)#@UndefinedVariable
+        self.more_frames_remain = True
+        self.frame = self.cap.read()[1]
         
     def set_previous_to_current(self):
         self.previous_frame = self.frame
@@ -86,6 +105,9 @@ class Video(object):
     
     def scroll_to_beginning(self):
         self.cap.set(cv2.CAP_PROP_POS_FRAMES,0.0)#@UndefinedVariable
+    
+    def scroll_to_end(self):
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)#@UndefinedVariable
         
     def __del__(self):
         if self.cap != None:

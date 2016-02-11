@@ -27,6 +27,7 @@ from calib.data import Video
 import datetime
 import sys
 import re
+import common.filter as cf 
 
 
 class CalibrateVideoApplication:
@@ -83,13 +84,14 @@ class CalibrateVideoApplication:
                                                   .replace(" ","-"))
         self.args = args
     
-    def __automatic_filter_stereo(self, verbose = False):
+    def __automatic_filter_stereo(self):
         l_frame = self.videos[0].frame
         lframe_prev = self.videos[0].previous_frame
         r_frame = self.videos[1].frame
 
         sharpness = min(cv2.Laplacian(l_frame, cv2.CV_64F).var(), 
                         cv2.Laplacian(r_frame, cv2.CV_64F).var())
+        verbose = False#set to True for sharpness analysis
         if(verbose):
             print("Minimum frame pair sharpness: " + sharpness)
         
@@ -131,24 +133,10 @@ class CalibrateVideoApplication:
         
     
     def __automatic_filter_basic_stereo(self):
-        l_frame = self.videos[0].frame
-        r_frame = self.videos[1].frame
-        
-        lfound,lcorners = cv2.findChessboardCorners(l_frame,self.board_dims)
-        rfound,rcorners = cv2.findChessboardCorners(r_frame,self.board_dims)
-        if not (lfound and rfound):
-            return False
-        
-        self.videos[0].current_corners = lcorners
-        self.videos[1].current_corners = rcorners
-        
-        return True
+        return cf.filter_basic_stereo(self.videos, self.board_dims)
     
     def __automatic_filter_basic_mono(self):
-        frame = self.video.frame
-        found,corners = cv2.findChessboardCorners(frame,self.board_dims)  
-        self.video.current_corners = corners
-        return found
+        return cf.filter_basic_mono(self.video, self.board_dims)
 
     def load_frame_images(self):
         print("Loading frames from '{0:s}'".format(self.full_frame_folder_path))
