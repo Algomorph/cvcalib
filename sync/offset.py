@@ -22,7 +22,9 @@ def extract_audio(folder, video_file):
     track_name = video_file.split(".")
     audio_output_name = track_name[0] + "WAV.wav"  # !! CHECK TO SEE IF FILE IS IN UPLOADS DIRECTORY
     audio_output_path = folder + audio_output_name
-    #ffmpeg was accepted back into Debian, and libav is now a 2nd choice, so, what gives?
+    #ffmpeg was accepted back into Debian, and libav is now a 2nd choice, so, what gives? -Greg
+    #Now piping the output back to this process (to reduce verbosity and potentially be able to use
+    #the output).-Greg
     #TODO: detect whether user has avconv or ffmpeg, and use the appropriate call
     args = ["ffmpeg", "-y", "-i", folder+video_file, "-vn", "-ac", "1", "-f", "wav", audio_output_path]
     process = Popen(args, stdout=PIPE, stderr=PIPE)
@@ -208,7 +210,8 @@ def find_time_offset(video1, video2, folder, fft_bin_size=1024, overlap=0, box_h
     samples_per_sec = rate1 / (fft_bin_size-(overlap/2))
 
     seconds = delay / samples_per_sec
-    #add empirically established constant correction term (TODO: determine why this error)
+    #add empirically established constant correction term
+    #TODO: determine why this systematic error occurs
     correction = 0.0083
     seconds += correction 
     seconds = round(seconds, 4)
