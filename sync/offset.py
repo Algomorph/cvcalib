@@ -214,13 +214,12 @@ def find_time_offset(video1, video2, folder, fft_bin_size=1024, overlap=0, box_h
     #add empirically established constant correction term
     #TODO: determine why this systematic error occurs
     correction = 0.0083
-    seconds += correction 
     seconds = round(seconds, 4)
  
     if seconds > 0:
-        return ((0, seconds), frame_rate1)
+        return ((0, seconds - correction), frame_rate1)
     else:
-        return ((abs(seconds), 0), frame_rate1)
+        return ((abs(seconds) + correction, 0), frame_rate1)
 
 
 
