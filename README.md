@@ -2,6 +2,20 @@
 
 Powerful console application for calibration (including stereo calibration) of cameras from video files based on the OpenCV library.
 
+###What the heck is *sync_video.py*?
+
+This is for automated video syncing using sound. Sound has very high temporal resolution, much higher than video. In case the videos for calibration are obtained using cameras that were not genlocked or synchronized in any way, this utility can save you a lot of time spent finding the corresponding frames in the two videos and manually editing them to synchronize them. It finds the offset between the videos by matching groupings of frequency peaks in their audio, seeks out the calibration board (optionally) to determine what to cut off from the start and the end, and automatically recodes the videos for you to input into the provided calibration script. The offset-finding is adapted from Allison Deal's [VideoSync] (https://github.com/allisonnicoledeal/VideoSync).
+
+###What's so powerful about *calibrate_video_opencv.py*?
+
+It allowes you to set various ways to filter off unwanted frames. The most critical is `--frame_count_target=X` or `--ft=X`, where X is an integer, representing approximately how many frames you want to cherry-pick for the calibration. The reason this number is important is that runtime of the OpenCV calibration routine increases with the number of frames you pass it in a faster-than-linear way, i.e. conisder a I7-4790K CPU taking about 8 hours to calibrate based on 200 frames. Specifying the target frame number will cause the frame gathering algorithm to skip over even intervalls in the video(s) before sifting through frames to pick out the next one to sample.
+
+Other filters include frame sharpness (calculated as variance of the image convolved with the Laplacian operator), minimum raw pixel difference from the previously-sampled frame, and a manual filter that uses OpenCV GUI routines to display the images to be accepted or rejected via keyboard strokes.
+
+Another useful feature is saving/loading of cherry-picked frames and/or checkerboard inner corner positions detected in the cherry-picked frames. This allows to skip the gathering process when re-calibrating with different settings.
+
+Finally, because there are so many command-line options, there is a simple way to save all the settings in a YAML settings file, to avoid re-entering them later. The setting file may subsequently be overridden by and/or updated with the alternative settings passed as command-line arguments.
+
 ###Requirements
 *calibrate_video_opencv.py*:
 * [Python 3.4](https://www.python.org/) or newer
@@ -37,21 +51,34 @@ The default calibration board provided (checkerboard.pdf) is a small 9x6 checker
 
 #####Using the resulting calibration file
 
-The resulting calibration file can be read back in by adapting the same python code (check the XML module), but the format is also fully-compatible with OpenCV's XML input-output utilities, so you can read it from your C++ OpenCV applications or libraries.
+The resulting calibration file can be read back in by adapting the same python code (check the XML module), but the format is also fully-compatible with OpenCV's XML input-output utilities, so you can read it from your C++ OpenCV applications or libraries. Here is some ugly C++ code that does that for your convenience:
+```C++
+include <opencv2/core.hpp>
 
-###What the heck is *sync_video.py*?
+//.....
+// then, in some function:
+cv::FileStorage fs(path, cv::FileStorage::READ);
 
-This is for automated video syncing using sound. Sound has very high temporal resolution, much higher than video. In case the videos for calibration are obtained using cameras that were not genlocked or synchronized in any way, this utility can save you a lot of time spent finding the corresponding frames in the two videos and manually editing them to synchronize them. It finds the offset between the videos by matching groupings of frequency peaks in their audio, seeks out the calibration board (optionally) to determine what to cut off from the start and the end, and automatically recodes the videos for you to input into the provided calibration script. The offset-finding is adapted from Allison Deal's [VideoSync] (https://github.com/allisonnicoledeal/VideoSync).
+cv::FileNode stereo_calib_node = fs["StereoCalibrationInfo"];
+cv::FileNode cameras_node = stereo_calib_node["Cameras"];
+cv::FileNode camera_0_node = cameras_node[0];
+cv::FileNode camera_1_node = cameras_node[1];
 
-###What's so powerful about *calibrate_video_opencv.py*?
+cv::Mat K0, d0, K1, d1, R, T;
+cv::Size im_size;
 
-It allowes you to set various ways to filter off unwanted frames. The most critical is `--frame_count_target=X` or `--ft=X`, where X is an integer, representing approximately how many frames you want to cherry-pick for the calibration. The reason this number is important is that runtime of the OpenCV calibration routine increases with the number of frames you pass it in a faster-than-linear way, i.e. conisder a I7-4790K CPU taking about 8 hours to calibrate based on 200 frames. Specifying the target frame number will cause the frame gathering algorithm to skip over even intervalls in the video(s) before sifting through frames to pick out the next one to sample.
+camera_0_node["intrinsic_mat"] >> K0;
+camera_0_node["distortion_coeffs"] >> d0;
+camera_1_node["intrinsic_mat"] >> K1;
+camera_1_node["distortion_coeffs"] >> d1;
+stereo_calib_node["rotation"] >> R;
+stereo_calib_node["translation"] >> T;
 
-Other filters include frame sharpness (calculated as variance of the image convolved with the Laplacian operator), minimum raw pixel difference from the previously-sampled frame, and a manual filter that uses OpenCV GUI routines to display the images to be accepted or rejected via keyboard strokes.
+im_size = cv::Size(static_cast<int>(camera_0_node["resolution"]["width"]),
+			static_cast<int>(camera_0_node["resolution"]["height"]));
+```
 
-Another useful feature is saving/loading of cherry-picked frames and/or checkerboard inner corner positions detected in the cherry-picked frames. This allows to skip the gathering process when re-calibrating with different settings.
 
-Finally, because there are so many command-line options, there is a simple way to save all the settings in a YAML settings file, to avoid re-entering them later. The setting file may subsequently be overridden by and/or updated with the alternative settings passed as command-line arguments.
 
 ###Calibration Tips
 Calibration experts: skip this section.
