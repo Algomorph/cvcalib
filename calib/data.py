@@ -38,7 +38,7 @@ def _resolution_to_xml(element, resolution):
 
 def _error_and_time_from_xml(element):
     error = float(element.find("error").text)
-    time = float(element.find("time"))
+    time = float(element.find("time").text)
     return error, time
 
 def _error_and_time_to_xml(element, error, time):

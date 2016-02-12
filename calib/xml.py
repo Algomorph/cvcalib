@@ -37,7 +37,7 @@ def make_opencv_matrix_xml_element(root, mat, name):
     cols_elem.text = str(mat.shape[1])
     dt_elem = etree.SubElement(mat_element, "dt")
     if(mat.dtype == np.dtype('float64')):
-        dt_elem.text = "distortion_coeffs"
+        dt_elem.text = "d"
     elif(mat.dtype == np.dtype("float32")):
         dt_elem.text = "f"
     else:

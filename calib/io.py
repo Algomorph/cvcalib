@@ -49,8 +49,8 @@ def load_opencv_single_calibration(path):
     @rtype calib.data.CameraCalibrationInfo
     '''
     tree = etree.parse(path)
-    stereo_calib_elem = tree.find("CameraCalibrationInfo")
-    return data.CameraCalibrationInfo.from_xml(stereo_calib_elem)
+    calib_elem = tree.find("CameraCalibrationInfo")
+    return data.CameraCalibrationInfo.from_xml(calib_elem)
 
 def load_opencv_calibration(path):
     '''
@@ -61,10 +61,11 @@ def load_opencv_calibration(path):
     @rtype calib.data.CameraCalibrationInfo | calib.data.StereoCalibrationInfo
     '''
     tree = etree.parse(path)
-    stereo_calib_elem = tree.find("CameraCalibrationInfo")
-    if(stereo_calib_elem is not None):
-        calib_info = data.CameraCalibrationInfo.from_xml(stereo_calib_elem)
+    calib_elem = tree.find("CameraCalibrationInfo")
+    if(calib_elem is not None):
+        calib_info = data.CameraCalibrationInfo.from_xml(calib_elem)
     else:
+        stereo_calib_elem = tree.find("StereoCalibrationInfo")
         calib_info = data.StereoCalibrationInfo.from_xml(stereo_calib_elem)
     return calib_info
 
