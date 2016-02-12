@@ -83,8 +83,8 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
                                              data.CameraCalibrationInfo(resolution, index=1)), 
                                              _id=signature)
     #shorten notation later in the code
-    cam0 = result.videos[0]
-    cam1 = result.videos[1]
+    cam0 = result.intrinsics[0]
+    cam1 = result.intrinsics[1]
     
     #OpenCV prefers the Width x Height as "Size" to Height x Width
     frame_dims = (resolution[1],resolution[0])

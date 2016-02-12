@@ -217,7 +217,7 @@ def find_time_offset(video1, video2, folder, fft_bin_size=1024, overlap=0, box_h
     seconds = round(seconds, 4)
  
     if seconds > 0:
-        return ((0, seconds - correction), frame_rate1)
+        return ((0, seconds + correction), frame_rate1)
     else:
         return ((abs(seconds) + correction, 0), frame_rate1)
 

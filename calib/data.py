@@ -180,15 +180,15 @@ class StereoCalibrationInfo(object):
     '''
     Represents the results of a stereo calibration procedure, including all the information
     necessary to stereo-rectify images from the corresponding videos.
-    Camera videos <left,right> are always represented by indices <0,1> respectively
+    Camera intrinsics <left,right> are always represented by indices <0,1> respectively
     '''
     def __init__(self, intrinsics, rotation = np.eye(3,dtype=np.float64), 
                  translation = np.zeros(3,np.float64), essential_mat = np.eye(3,dtype=np.float64), 
                  fundamental_mat = np.eye(3,dtype=np.float64), error = -1.0, time = 0.0, _id = None):
         '''
         Constructor
-        @type videos: tuple[calib.data.CameraCalibrationInfo]
-        @param videos: tuple composed of two videos of the stereo camera pair.
+        @type intrinsics: tuple[calib.data.CameraCalibrationInfo]
+        @param intrinsics: tuple composed of two videos of the stereo camera pair.
         @type rotation: numpy.ndarray
         @param rotation: 3x3 rotation matrix from camera 0 to camera 1
         @type translation: numpy.ndarray
@@ -198,7 +198,7 @@ class StereoCalibrationInfo(object):
         @type  time: float
         @param time: calibration time in seconds
         '''
-        self.videos = intrinsics
+        self.intrinsics = intrinsics
         self.rotation = rotation
         self.translation = translation
         self.essential_mat = essential_mat
@@ -220,8 +220,8 @@ class StereoCalibrationInfo(object):
         stereo_calib_elem = etree.SubElement(root_element, "StereoCalibrationInfo",
                                              attrib={"id":str(self.id)})
         cameras_elem = etree.SubElement(stereo_calib_elem, "Cameras")
-        self.videos[0].to_xml(cameras_elem)
-        self.videos[1].to_xml(cameras_elem)
+        self.intrinsics[0].to_xml(cameras_elem)
+        self.intrinsics[1].to_xml(cameras_elem)
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.rotation, "rotation")
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.translation, "translation")
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.essential_mat, "essential_mat")
@@ -233,7 +233,7 @@ class StereoCalibrationInfo(object):
         return (("Stereo Calibration Info, id: {0:s}\n-----CAM0-----\n{1:s}\n-----CAM1-----\n{2:s}"+
                  "\n--------------\nRotation:\n{3:s}\nTranslation:\n{4:s}\nEssential Matrix:\n{5:s}"
                  +"\nFundamental Matrix:\n{6:s}\nError: {7:f}\nTime: {8:f}")
-                .format(str(self.id),str(self.videos[0]),str(self.videos[1]),str(self.rotation),
+                .format(str(self.id),str(self.intrinsics[0]),str(self.intrinsics[1]),str(self.rotation),
                         str(self.translation),str(self.essential_mat),str(self.fundamental_mat),
                         self.error,self.time))
         
