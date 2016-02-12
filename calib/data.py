@@ -142,13 +142,17 @@ class CameraCalibrationInfo(object):
         self.time = time
         self.index = index
     
-    def to_xml(self, root_element):
+    def to_xml(self, root_element, as_sequence = False):
         '''
         Build an xml node representation of this object under the provided root xml element
         @type root_element:  lxml.etree.SubElement
         @param root_element: the root element to build under
         '''
-        intrinsics_elem = etree.SubElement(root_element,"CameraCalibrationInfo",attrib={"index":str(self.index)})
+        if(as_sequence == False):
+            elem_name = "CameraCalibrationInfo"
+        else:
+            elem_name = "_"
+        intrinsics_elem = etree.SubElement(root_element,elem_name,attrib={"index":str(self.index)})
         _resolution_to_xml(intrinsics_elem, self.resolution)
         xml.make_opencv_matrix_xml_element(intrinsics_elem, self.intrinsic_mat, "intrinsic_mat")
         xml.make_opencv_matrix_xml_element(intrinsics_elem, self.distortion_coeffs, "distortion_coeffs")
@@ -211,17 +215,21 @@ class StereoCalibrationInfo(object):
         else:
             self.id = _id
         
-    def to_xml(self, root_element):
+    def to_xml(self, root_element, as_sequence = False):
         '''
         Build an xml node representation of this object under the provided root xml element
         @type root_element:  lxml.etree.SubElement
         @param root_element: the root element to build under
         '''
-        stereo_calib_elem = etree.SubElement(root_element, "StereoCalibrationInfo",
+        if(as_sequence == False):
+            elem_name = "StereoCalibrationInfo"
+        else:
+            elem_name = "_"
+        stereo_calib_elem = etree.SubElement(root_element, elem_name,
                                              attrib={"id":str(self.id)})
         cameras_elem = etree.SubElement(stereo_calib_elem, "Cameras")
-        self.intrinsics[0].to_xml(cameras_elem)
-        self.intrinsics[1].to_xml(cameras_elem)
+        self.intrinsics[0].to_xml(cameras_elem, as_sequence = True)
+        self.intrinsics[1].to_xml(cameras_elem, as_sequence = True)
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.rotation, "rotation")
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.translation, "translation")
         xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.essential_mat, "essential_mat")
