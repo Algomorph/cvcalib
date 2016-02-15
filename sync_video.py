@@ -37,6 +37,7 @@ class Setting(Enum):
     calibration_clip = "calibration_clip"
     calibration_seek_interval = "calibration_seek_interval"
     trim_end = "trim_end"
+    audio_delay = "audio_delay"
     flip = "flip"
     preserve_audio = "preserve_audio"
 
@@ -52,11 +53,15 @@ def main(argv=None):
        Setting.calibration_clip.name: True,
        Setting.calibration_seek_interval.name: 1.0,
        Setting.trim_end.name:20.0,
+       Setting.audio_delay.name:[0.0,0.0],
        Setting.flip.name: [True, False],
        Setting.preserve_audio.name: False
        }
     
-    parser = argparse.ArgumentParser(description='Synchronize two videos based on their sound.')
+    parser = argparse.ArgumentParser(description="Synchronize two videos based on their sound. "+
+                                     "If you need precision, especially for videos with over 30 fps," +
+                                     "you are encouraged to manually measure offset between video "+
+                                     "and audio, and apply the audio_delay parameter.")
 
     #============== INPUT / OUTPUT PATHS ==========================================================#
     parser.add_argument("-f", "--" + Setting.folder.name, help="Path to root folder to work in", 
@@ -76,18 +81,20 @@ def main(argv=None):
                         "In calibration clip mode (default), the algorithm seeks out when a "+
                         "calibration board first and last appears, and clip "+
                         "using this range in addition to the offset.", action="store_false",
-                        default=defaults[Setting.calibration_clip.name])
-    
+                        required=False, default=defaults[Setting.calibration_clip.name])
     parser.add_argument("-csi", "--" + Setting.calibration_seek_interval.name, type = float,
                         help="Time intervals (in seconds) to step over during the calibration clip"+
                         " procedure. Higher values will reduce seek time, but result in coarser "+
                         " intervals with more potentially usable frames omitted.",
-                        default=defaults[Setting.calibration_seek_interval.name])
-    
-    parser.add_argument("-te", "--" + Setting.trim_end.name, type = float,
+                        required=False,default=defaults[Setting.calibration_seek_interval.name])
+    parser.add_argument("-te", "--" + Setting.trim_end.name, type = float, required=False,
                         help="Time to force-trim away from the end. Typically, relevant for calibration,"+
                         " where cameras are set down and turned off after capture. Use sparingly otherwise.",
                         default=defaults[Setting.trim_end.name])
+    parser.add_argument("-ad", "--" + Setting.audio_delay.name, required=False, nargs=2, type=float,
+                        default=defaults[Setting.audio_delay.name], help="Delay between visual events"+
+                        " and their corresponding audio events for each video, measured in seconds.")
+    
     
     #============== BOARD DIMENSIONS ==============================================================#
     parser.add_argument("-bw", "--" + Setting.board_width.name, 

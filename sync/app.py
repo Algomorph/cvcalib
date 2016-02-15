@@ -46,7 +46,7 @@ class SyncVideoApp(object):
     def run_sync(self):
         args = self.args
         
-        offset, frame_rate = find_time_offset(args.videos[0], args.videos[1], args.folder)#@UnusedVariable
+        offset, frame_rate = find_time_offset(args.videos, args.folder, args.audio_delay)#@UnusedVariable
         print("Offset: {0:s}".format(str(offset)))
         
         if(args.calibration_clip):

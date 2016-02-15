@@ -46,7 +46,8 @@ def parse_frame_rate(ffmpeg_output):
 # INPUT: Audio file
 # OUTPUT: Sets sample rate of wav file, Returns data read from wav file (numpy array of integers)
 def read_audio(audio_file):
-    rate, data = scipy.io.wavfile.read(audio_file)  # Return the sample rate (in samples/sec) and data from a WAV file
+    #Return the sample rate (in samples/sec) and data from a WAV file
+    rate, data = scipy.io.wavfile.read(audio_file)  #@UndefinedVariable 
     return data, rate
 
 
@@ -159,18 +160,20 @@ def find_delay(time_pairs):
 
 
 # Find time offset between two video files
-def find_time_offset(video1, video2, folder, fft_bin_size=512, overlap=0, box_height=512, box_width=43, samples_per_box=7):
+def find_time_offset(video_filenames, folder, audio_delays, fft_bin_size=512, overlap=0, box_height=512, box_width=43, samples_per_box=7):
     '''
     Find time offset between two video files and the frame rate 
-    (requires for frame and bit rates of the two videos to be the same) 
-    @param video1 filename of the first video 
-    @param video2 filename of the second video
-    @param folder absolute or relative directory wherein the two videos are located
+    (requires for frame and bit rates of the two videos to be the same)
+    @type video_filenames: list[str] 
+    @param video_filenames: filenames of the two videos 
+    @param folder: absolute or relative directory wherein the two videos are located
+    @type audio_delays: list[float]
+    @param audio_delays: delay between video and audio, in seconds, in the first and second video files respectively 
     @param fft_bin_size size of the FFT bins, i.e. segments of audio, in beats, for which a separate 
     peak is found
     @param overlap overlap between each bin
-    @param box_height height of the frequency constellations
-    @param box_width width of the frequency constellations
+    @param box_height height of the boxes in frequency histograms
+    @param box_width width of the boxes in frequency histograms
     @param samples_per_box # of frequency samples within each constellation
     @return time offset between the two videos and their frame rate, 
     in format ((offset1, offset2) frame_rate), where one of the offsets is zero, 
@@ -181,7 +184,7 @@ def find_time_offset(video1, video2, folder, fft_bin_size=512, overlap=0, box_he
     sample_duration = 60
     
     # Process first file (orig)
-    retcode, err_text, wavfile1, output  = extract_audio(folder, video1)#@UnusedVariable
+    retcode, err_text, wavfile1, output  = extract_audio(folder, video_filenames[0])#@UnusedVariable
     if(retcode != 0):
         raise RuntimeError("ffmpeg error:\n{0:s}".format(err_text))    
     frame_rate1 = parse_frame_rate(err_text)#turns out ffmpeg prints its regular output to stderr (?)
@@ -191,19 +194,21 @@ def find_time_offset(video1, video2, folder, fft_bin_size=512, overlap=0, box_he
     ft_dict1 = find_bin_max(boxes1, samples_per_box)  # samples per box
 
     # Process second file (sample)
-    retcode, err_text, wavfile2, output = extract_audio(folder, video2)#@UnusedVariable
+    retcode, err_text, wavfile2, output = extract_audio(folder, video_filenames[1])#@UnusedVariable
     if(retcode != 0):
         raise RuntimeError("ffmpeg error:\n{0:s}".format(err_text))
     raw_audio2, rate2 = read_audio(wavfile2)
     frame_rate2 = parse_frame_rate(err_text)
-    bins_dict2 = make_horiz_bins(raw_audio2[:rate2*sample_duration], fft_bin_size, overlap, box_height)
-    boxes2 = make_vert_bins(bins_dict2, box_width)
-    ft_dict2 = find_bin_max(boxes2, samples_per_box)
-    
+    #perform sanity checks
     if(rate1 != rate2):
         raise ValueError("The bitrates of two provided files do not match.")
     if(frame_rate1 != frame_rate2):
         raise ValueError("The framerates of two provided files do not match.")
+    bins_dict2 = make_horiz_bins(raw_audio2[:rate2*sample_duration], fft_bin_size, overlap, box_height)
+    boxes2 = make_vert_bins(bins_dict2, box_width)
+    ft_dict2 = find_bin_max(boxes2, samples_per_box)
+    
+
 
     # Determie time delay
     pairs = find_freq_pairs(ft_dict1, ft_dict2)
@@ -211,12 +216,10 @@ def find_time_offset(video1, video2, folder, fft_bin_size=512, overlap=0, box_he
     samples_per_sec = rate1 / (fft_bin_size-(overlap/2))
 
     seconds = delay / samples_per_sec
-    #add empirically established constant correction term
-    #TODO: add correction argument
+    
     #(manually compute difference in delay between video and audio for both videos as diff1 and diff2,
     # correction = diff1 - diff2)
-    correction = 0.0000
-    #correction = 0.0083
+    correction = audio_delays[0] - audio_delays[1]
     seconds = round(seconds, 4)
  
     if seconds > 0:
