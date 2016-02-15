@@ -13,7 +13,7 @@ import numpy as np
 from subprocess import Popen, PIPE
 import math
 import re
-
+import os.path as osp
 
 # Extract audio from video file, save as wav auido file
 # INPUT: Video file
@@ -21,12 +21,12 @@ import re
 def extract_audio(folder, video_file):
     track_name = video_file.split(".")
     audio_output_name = track_name[0] + "WAV.wav"  # !! CHECK TO SEE IF FILE IS IN UPLOADS DIRECTORY
-    audio_output_path = folder + audio_output_name
+    audio_output_path = osp.join(folder,audio_output_name)
     #ffmpeg was accepted back into Debian, and libav is now a 2nd choice, so, what gives? -Greg
     #Now piping the output back to this process (to reduce verbosity and potentially be able to use
     #the output).-Greg
     #TODO: detect whether user has avconv or ffmpeg, and use the appropriate call
-    args = ["ffmpeg", "-y", "-i", folder+video_file, "-vn", "-ac", "1", "-f", "wav", audio_output_path]
+    args = ["ffmpeg", "-y", "-i", osp.join(folder,video_file), "-vn", "-ac", "1", "-f", "wav", audio_output_path]
     process = Popen(args, stdout=PIPE, stderr=PIPE)
     output, err = process.communicate()
     exit_code = process.wait()
@@ -169,12 +169,12 @@ def find_time_offset(video_filenames, folder, audio_delays, fft_bin_size=512, ov
     @param folder: absolute or relative directory wherein the two videos are located
     @type audio_delays: list[float]
     @param audio_delays: delay between video and audio, in seconds, in the first and second video files respectively 
-    @param fft_bin_size size of the FFT bins, i.e. segments of audio, in beats, for which a separate 
+    @param fft_bin_size: size of the FFT bins, i.e. segments of audio, in beats, for which a separate 
     peak is found
-    @param overlap overlap between each bin
-    @param box_height height of the boxes in frequency histograms
-    @param box_width width of the boxes in frequency histograms
-    @param samples_per_box # of frequency samples within each constellation
+    @param overlap: overlap between each bin
+    @param box_height: height of the boxes in frequency histograms
+    @param box_width: width of the boxes in frequency histograms
+    @param samples_per_box: # of frequency samples within each constellation
     @return time offset between the two videos and their frame rate, 
     in format ((offset1, offset2) frame_rate), where one of the offsets is zero, 
     the other is how much you need to skip in that video to get to the corresponding point in the other video. 
