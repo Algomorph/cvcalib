@@ -34,8 +34,8 @@ class SyncVideoApp(object):
         self.args = args
         if(args.output[0] == None):
             for ix in range(0,len(args.videos)):
-                if("_raw" in args.videos[ix] and len(args.videos[ix]) > 4):
-                    args.output[ix] = args.videos[ix].replace("_raw", "")
+                if("raw_" in args.videos[ix] and len(args.videos[ix]) > 4):
+                    args.output[ix] = args.videos[ix].replace("raw_", "")
                 else:
                     args.output[ix] = args.videos[ix][:-4] + "_out.mp4"  
             print("Output filenames not set.\n  Setting output filenames to:"+

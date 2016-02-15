@@ -23,7 +23,7 @@ import cv2#@UnresolvedImport
 import numpy as np
 import calib.utils as cutils
 from calib import io as cio
-from calib.data import Video
+from calib.data import Video, StereoCalibrationInfo
 import datetime
 import sys
 import re
@@ -74,10 +74,14 @@ class CalibrateVideoApplication:
         
         
         self.pixel_difference_factor = 1.0 / (self.board_dims[0] * self.board_dims[1] * 3 * 256.0)
-        if(args.use_existing):
-            self.path_to_calib_file = osp.join(self.args.folder, self.args.output)
+        if(args.load_calibration_file != None):
+            full_path = osp.join(args.folder, args.load_calibration_file)
+            self.initial_calibration = cio.load_opencv_calibration(full_path)
+            if(len(args.videos) == 1 and type(self.initial_calibration) == StereoCalibrationInfo):
+                raise ValueError("Got only one video input, \'{0:s}\', but a stereo calibration "+
+                                 "input file '{0:s}'".format(self.video.name, args.load_calibration_file))
         else:
-            self.path_to_calib_file = None
+            self.initial_calibration = None
         if(args.output is None):
             args.output = "calib{0:s}.xml".format(re.sub(r"-|:","",
                                                          str(datetime.datetime.now())[:-7])
@@ -323,9 +327,10 @@ class CalibrateVideoApplication:
                                                          self.args.use_fisheye_model, 
                                                          self.args.use_rational_model, 
                                                          self.args.use_tangential_coeffs, 
-                                                         self.args.precalibrate_solo, 
+                                                         self.args.precalibrate_solo,
+                                                         self.args.stereo_only, 
                                                          self.args.max_iterations, 
-                                                         self.path_to_calib_file )
+                                                         self.initial_calibration )
             if self.args.preview:
                 l_im = cv2.imread(osp.join(self.args.folder,self.args.preview_files[0]))
                 r_im = cv2.imread(osp.join(self.args.folder,self.args.preview_files[1]))
@@ -336,11 +341,8 @@ class CalibrateVideoApplication:
                 cv2.imwrite(path_r, r_im)
         else:
             flags = 0
-            if self.path_to_calib_file != None:
-                result = cio.load_opencv_stereo_calibration(self.path_to_calib_file)
-                if(self.frame_dims != result.resolution):
-                    raise ValueError("Resolution in specified calibration file (" + 
-                                     self.path_to_calib_file + ") does not correspond to given resolution.")
+            if self.initial_calibration != None:
+                self.video.calib = self.initial_calibration
                 flags += cv2.CALIB_USE_INTRINSIC_GUESS
             criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, self.args.max_iterations, 
                         2.2204460492503131e-16)

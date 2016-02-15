@@ -66,6 +66,8 @@ def load_opencv_calibration(path):
         calib_info = data.CameraCalibrationInfo.from_xml(calib_elem)
     else:
         stereo_calib_elem = tree.find("StereoCalibrationInfo")
+        if(stereo_calib_elem is None):
+            raise ValueError("Unexpected calibration format in file {0:s}".format(path))
         calib_info = data.StereoCalibrationInfo.from_xml(stereo_calib_elem)
     return calib_info
 

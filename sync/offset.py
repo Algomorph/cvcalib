@@ -152,14 +152,14 @@ def find_delay(time_pairs):
         else:
             t_diffs[delta_t] = 1
     t_diffs_sorted = sorted(t_diffs.items(), key=lambda x: x[1])
-    #print(t_diffs_sorted)
+    print(t_diffs_sorted)
     time_delay = t_diffs_sorted[-1][0]
 
     return time_delay
 
 
 # Find time offset between two video files
-def find_time_offset(video1, video2, folder, fft_bin_size=1024, overlap=0, box_height=512, box_width=43, samples_per_box=7):
+def find_time_offset(video1, video2, folder, fft_bin_size=512, overlap=0, box_height=512, box_width=43, samples_per_box=7):
     '''
     Find time offset between two video files and the frame rate 
     (requires for frame and bit rates of the two videos to be the same) 
@@ -212,8 +212,11 @@ def find_time_offset(video1, video2, folder, fft_bin_size=1024, overlap=0, box_h
 
     seconds = delay / samples_per_sec
     #add empirically established constant correction term
-    #TODO: determine why this systematic error occurs
-    correction = 0.0083
+    #TODO: add correction argument
+    #(manually compute difference in delay between video and audio for both videos as diff1 and diff2,
+    # correction = diff1 - diff2)
+    correction = 0.0000
+    #correction = 0.0083
     seconds = round(seconds, 4)
  
     if seconds > 0:

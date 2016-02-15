@@ -33,30 +33,39 @@ except ImportError:
 class Setting(Enum):
     settings_file = "settings_file"
     save_settings = "save_settings"
+    
     folder = "folder"
-    frame_numbers = "frame_numbers"
     videos = "videos"
     preview_files = "preview_files"
     preview = "preview"
+    
     board_width = "board_width"
     board_height = "board_height"
     board_square_size = "board_square_size"
+    
     sharpness_threshold = "sharpness_threshold"
     difference_threshold = "difference_threshold"
     manual_filter = "manual_filter"
     frame_count_target = "frame_count_target"
-    corners_file = "corners_file"
-    save_corners = "save_corners"
-    load_corners = "load_corners"
+    frame_numbers = "frame_numbers"
+    
+    corner_positions_file = "corners_file"
+    save_corner_positions = "save_corner_positions"
+    load_corner_positions = "load_corner_positions"
+    
     max_iterations = "max_iterations"
     precalibrate_solo = "precalibrate_solo"
+    stereo_only = "stereo_only"
     use_rational_model = "use_rational_model"
     use_tangential_coeffs = "use_tangential_coeffs"
     use_fisheye_model = "use_fisheye_model"
+    output = "output"
+    load_calibration_file = "load_calibration_file"
+    
     skip_printing_output = "skip_printing_output"
     skip_saving_output = "skip_saving_output"
-    output = "output"
-    use_existing = "use_existing"
+    
+    
     filtered_image_folder = "filtered_image_folder"
     save_images = "save_images"
     load_images = "load_images"
@@ -65,30 +74,38 @@ def main(argv=None):
     defaults = {
         Setting.settings_file.name:None,
         Setting.save_settings.name:False,
+        
         Setting.folder.name:"./",
-        Setting.frame_numbers.name:None,
         Setting.videos.name: ["left.mp4","right.mp4"],
         Setting.preview_files.name:["left.png","right.png"],
         Setting.preview.name:False,
+        
         Setting.board_width.name:9,
         Setting.board_height.name:6,
         Setting.board_square_size.name:1.98888,
+        
         Setting.sharpness_threshold.name:55,
         Setting.difference_threshold.name:0.4,
         Setting.manual_filter.name:False,
         Setting.frame_count_target.name:-1,
-        Setting.corners_file.name:"corners.npz",
-        Setting.save_corners.name:False,
-        Setting.load_corners.name:False,
+        Setting.frame_numbers.name:None,
+        
+        Setting.corner_positions_file.name:"corners.npz",
+        Setting.save_corner_positions.name:False,
+        Setting.load_corner_positions.name:False,
+        
         Setting.max_iterations.name:30,
         Setting.precalibrate_solo.name:False,
+        Setting.stereo_only.name:False,
         Setting.use_rational_model.name:False,
         Setting.use_tangential_coeffs.name:False,
         Setting.use_fisheye_model.name:False,
+        Setting.output.name:None,
+        Setting.load_calibration_file.name:None,
+        
         Setting.skip_printing_output.name:False,
         Setting.skip_saving_output.name:False,
-        Setting.output.name:None,
-        Setting.use_existing.name:False,
+        
         Setting.filtered_image_folder.name:"frames",
         Setting.save_images.name:False,
         Setting.load_images.name:False
@@ -115,16 +132,14 @@ def main(argv=None):
             config_defaults = load(file_stream, Loader=Loader)
             file_stream.close()
             for key,value in config_defaults.items():
-                defaults[key] = value 
+                defaults[key] = value
+        else:
+            raise ValueError("Settings file not found at: {0:s}".format(args.settings_file))
     
     parser = ap.ArgumentParser(parents=[conf_parser])
     
     parser.add_argument("-f", "--" + Setting.folder.name, help="Path to root folder to work in", 
                         required=False, default=defaults[Setting.folder.name])
-    parser.add_argument("-fn", "--" + Setting.frame_numbers.name, help="frame numbers .npz file with"+
-                        " frame_numbers array."+
-                        " If specified, program filters frame pairs based on these numbers instead of other"+
-                        " criteria.",required=False, default=None)
     parser.add_argument("-v", "--" + Setting.videos.name,metavar="VIDEO", nargs='+', action=required_length(1, 2),
                         help="input stereo video tuple (left, right) or a single video file,"+
                         " relative to the 'folder' argument", 
@@ -132,10 +147,10 @@ def main(argv=None):
     
     #============== CALIBRATION PREVIEW ===========================================================#
     #currently does not work due to OpenCV python bindings bug
-    parser.add_argument("-pf", "--" + Setting.preview_files.name, nargs='+', help="input frames to test"+
+    parser.add_argument("-cpf", "--" + Setting.preview_files.name, nargs='+', help="input frames to test"+
                         " calibration result (currently only for stereo)", 
                         required=False, default= ["left.png","right.png"], action=required_length(1, 2))
-    parser.add_argument("-p", "--" + Setting.preview.name, help="Test calibration result on left/right"+
+    parser.add_argument("-cp", "--" + Setting.preview.name, help="Test calibration result on left/right"+
                         " frame pair (currently only for stereo)", 
                         action = "store_true", required=False, default=defaults[Setting.preview.name])
     
@@ -167,57 +182,63 @@ def main(argv=None):
     parser.add_argument("-ft", "--" + Setting.frame_count_target.name, required=False, 
                         default=defaults[Setting.frame_count_target.name], type=int,
                         help="total number of frames (from either camera) to target for calibration.")
+    parser.add_argument("-fn", "--" + Setting.frame_numbers.name, help="frame numbers .npz file with"+
+                        " frame_numbers array."+
+                        " If specified, program filters frame pairs based on these numbers instead of other"+
+                        " criteria.",required=False, default=None)
     
     #============== STORAGE OF BOARD INNER CORNER POSITIONS =======================================#
-    parser.add_argument("-c", "--" + Setting.corners_file.name,
+    parser.add_argument("-pf", "--" + Setting.corner_positions_file.name,
                         help="file (relative to 'folder') where to load from / save to inner corner positions",
                          required = False, 
-                        default=defaults[Setting.corners_file.name])
-    parser.add_argument("-cs", "--" + Setting.save_corners.name, action='store_true',
+                        default=defaults[Setting.corner_positions_file.name])
+    parser.add_argument("-ps", "--" + Setting.save_corner_positions.name, action='store_true',
                         help = "save the gathered locations of inner board corners.",
                         required = False, 
-                        default=defaults[Setting.save_corners.name])
-    parser.add_argument("-cl", "--" + Setting.load_corners.name, action='store_true',
+                        default=defaults[Setting.save_corner_positions.name])
+    parser.add_argument("-pl", "--" + Setting.load_corner_positions.name, action='store_true',
                         help = "load the previously-gathered locations of inner board corners"+
                         " (skips gathering frame data)", 
                         required = False, 
-                        default=defaults[Setting.load_corners.name])
+                        default=defaults[Setting.load_corner_positions.name])
 
-    
     #============== CALIBRATION & DISTORTION MODEL CONTROLS =======================================#
-    parser.add_argument("-i", "--" + Setting.max_iterations.name, 
+    parser.add_argument("-ci", "--" + Setting.max_iterations.name, 
                         help="maximum number of iterations for the stereo"+
                         " calibration (optimization) loop", type=int, required = False, 
                         default=defaults[Setting.max_iterations.name])
-    parser.add_argument("-ds", "--" + Setting.precalibrate_solo.name, help="calibrate each camera "+
+    parser.add_argument("-cs", "--" + Setting.precalibrate_solo.name, help="calibrate each camera "+
                         "individually (in case of stereo calibration) "+
                         "first, then perform stereo calibration",action='store_true', required = False, 
                         default=defaults[Setting.precalibrate_solo.name])
-    parser.add_argument("-dr", "--" + Setting.use_rational_model.name,
+    parser.add_argument("-cso", "--" + Setting.stereo_only.name, 
+                        help="Fix intrinsics and perform stereo calibration only."
+                        +" Useful in conjunction with the " + Setting.load_calibration_file.name +
+                        " option. Does nothing for single-camera calibration.", action='store_true', 
+                        required=False, default=defaults[Setting.stereo_only.name])
+    parser.add_argument("-cr", "--" + Setting.use_rational_model.name,
                         help="Use the newer OpenCV rational model (8 distorition coefficients"+
                         " w/ tangential ones, 6 without)", 
                         action='store_true', required = False, 
                         default=defaults[Setting.use_rational_model.name])
-    parser.add_argument("-dt", "--" + Setting.use_tangential_coeffs.name, action='store_true',
+    parser.add_argument("-ct", "--" + Setting.use_tangential_coeffs.name, action='store_true',
                         help="Use tangential distortion coefficients (usually unnecessary)", 
                         required = False, default=defaults[Setting.use_tangential_coeffs.name])
-    parser.add_argument("-df", "--" + Setting.use_fisheye_model.name,
+    parser.add_argument("-cf", "--" + Setting.use_fisheye_model.name,
                         help="Use the fisheye distortion model (WARNING: OpenCV3 python bindings may still be broken!)", 
                         action='store_true', 
                         required = False, default=defaults[Setting.use_fisheye_model.name])
-    
+    #TODO this should be a separate setting from output file
+    parser.add_argument("-cl", "--" + Setting.load_calibration_file.name, 
+                        help="an existing calibration output file to initialize calibration parameters (optional).", 
+                        type=str, required = False, default=defaults[Setting.load_calibration_file.name])
+    parser.add_argument("-co", "--" + Setting.output.name, help="output file to store calibration results (relative to 'folder')", 
+                        required = False, default=defaults[Setting.output.name])
+    #==============================================================================================#
     parser.add_argument("-skp", "--" + Setting.skip_printing_output.name, action='store_true', 
                         required = False, default= defaults[Setting.skip_printing_output.name])
-    parser.add_argument("-sks", "--" + Setting.skip_saving_output.name, action='store_true', 
+    parser.add_argument("-sko", "--" + Setting.skip_saving_output.name, action='store_true', 
                         required = False, default= defaults[Setting.skip_saving_output.name])
-    
-    parser.add_argument("-o", "--" + Setting.output.name, help="output file to store calibration results (relative to 'folder')", 
-                        required = False, default=defaults[Setting.output.name])
-    #TODO this should be a separate setting from output file
-    parser.add_argument("-u", "--" + Setting.use_existing.name, 
-                        help="use the existing output file to initialize calibration parameters", 
-                        action="store_true", required = False, default=defaults[Setting.use_existing.name])
-    
     #============== FILTERED IMAGE/FRAME BACKUP & LOADING =========================================#
     parser.add_argument("-if", "--" + Setting.filtered_image_folder.name, help="filtered frames"+
                         " will be saved into this folder (relative to work folder specified by --folder)", 

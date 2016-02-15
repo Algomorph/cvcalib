@@ -20,7 +20,6 @@ limitations under the License.
 
 import numpy as np
 import time
-import calib.io as io
 import calib.data as data
 import cv2#@UnresolvedImport
 
@@ -64,21 +63,20 @@ def generate_preview(stereo_calib_info, test_im_left, test_im_right):
 def stereo_calibrate(limgpoints,rimgpoints,objpoints,
                      resolution,
                      use_fisheye = False,
-                     use_8 = True,
+                     use_rational_model = True,
                      use_tangential = False,
-                     precalibrate_solo = True, 
+                     precalibrate_solo = True,
+                     stereo_only = False, 
                      max_iters = 30,
-                     path_to_calib_file = None):
+                     initial_calibration = None):
     flags = 0
-       
-    if path_to_calib_file != None:
-        result = io.load_opencv_stereo_calibration(path_to_calib_file)
-        if(resolution != result.resolution):
-            raise ValueError("Resolution in specified calibration file (" + 
-                             path_to_calib_file + ") does not correspond to given resolution.")
+    
+    signature = time.strftime("%Y%m%d-%H%M%S",time.localtime())
+    if initial_calibration != None:
+        result = initial_calibration
         flags += cv2.CALIB_USE_INTRINSIC_GUESS
+        result.id = signature
     else:
-        signature = time.strftime("%Y%m%d-%H%M%S",time.localtime())
         result = data.StereoCalibrationInfo((data.CameraCalibrationInfo(resolution, index=0),
                                              data.CameraCalibrationInfo(resolution, index=1)), 
                                              _id=signature)
@@ -91,8 +89,13 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
     
     criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, max_iters, 2.2204460492503131e-16)
     
+    if(stereo_only):
+        if(initial_calibration == None):
+            raise ValueError("Initial calibration required when calibrating only stereo parameters.")
+        flags = flags | cv2.CALIB_FIX_INTRINSIC
+    
     if use_fisheye:
-        if path_to_calib_file == None:  
+        if initial_calibration == None:  
             d0 = np.zeros(4,np.float64)
             d1 = np.zeros(4,np.float64)
         else:
@@ -114,12 +117,13 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
     else:
         if not use_tangential:
             flags += cv2.CALIB_ZERO_TANGENT_DIST
-        if use_8:
+        if use_rational_model:
             flags += cv2.CALIB_RATIONAL_MODEL
         if(precalibrate_solo):
             cam0 = calibrate(objpoints, limgpoints, flags, criteria, cam0)
-            cam1 = calibrate(objpoints, rimgpoints, flags, criteria, cam1)  # @UnusedVariable
-            flags += cv2.CALIB_FIX_INTRINSIC
+            cam1 = calibrate(objpoints, rimgpoints, flags, criteria, cam1)
+            flags = flags | cv2.CALIB_FIX_INTRINSIC
+        
         start = time.time()
         result.error,\
         cam0.intrinsic_mat, cam0.distortion_coeffs,\
