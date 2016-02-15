@@ -153,7 +153,7 @@ def find_delay(time_pairs):
         else:
             t_diffs[delta_t] = 1
     t_diffs_sorted = sorted(t_diffs.items(), key=lambda x: x[1])
-    print(t_diffs_sorted)
+    #print(t_diffs_sorted)
     time_delay = t_diffs_sorted[-1][0]
 
     return time_delay
