@@ -82,7 +82,7 @@ def main(argv=None):
         
         Setting.board_width.name:9,
         Setting.board_height.name:6,
-        Setting.board_square_size.name:1.98888,
+        Setting.board_square_size.name:0.0198888,
         
         Setting.sharpness_threshold.name:55,
         Setting.difference_threshold.name:0.4,

@@ -153,6 +153,7 @@ class CalibrateVideoApplication:
         for video in self.videos:
             #assume matching numbers in corresponding left & right files
             files = [f for f in all_files if f.startswith(video.name)]
+
             cam_frame_ct = 0
             for ix_pair in range(len(files)):
                 #TODO: assumes there is the same number of frames for all videos, and all frame
