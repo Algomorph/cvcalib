@@ -63,6 +63,7 @@ class CalibrateVideoApplication:
         self.board_object_corner_set[:,:,:2] = np.indices(self.board_dims).T.reshape(-1, 1, 2)
         self.board_object_corner_set *= args.board_square_size
         
+        self.frame_numbers = []
         if args.frame_numbers:
             path = osp.join(args.folder, args.frame_numbers)
             print("Loading frame numbers from \"{0:s}\"".format(path))
@@ -143,6 +144,9 @@ class CalibrateVideoApplication:
         return cf.filter_basic_mono(self.video, self.board_dims)
 
     def load_frame_images(self):
+        '''
+        Load images (or image pairs) from self.full_frame_folder_path
+        '''
         print("Loading frames from '{0:s}'".format(self.full_frame_folder_path))
         all_files = [f for f in os.listdir(self.full_frame_folder_path) 
                  if osp.isfile(osp.join(self.full_frame_folder_path,f)) and f.endswith(".png")]
@@ -150,15 +154,21 @@ class CalibrateVideoApplication:
         
         usable_frame_ct = sys.maxsize
         
+        frame_number_sets = []
+        
         for video in self.videos:
             #assume matching numbers in corresponding left & right files
             files = [f for f in all_files if f.startswith(video.name)]
-
+            files.sort()#added to be explicit
+            
             cam_frame_ct = 0
+            frame_numbers = []
             for ix_pair in range(len(files)):
                 #TODO: assumes there is the same number of frames for all videos, and all frame
                 #indexes match
                 frame = cv2.imread(osp.join(self.full_frame_folder_path,files[ix_pair]))
+                frame_number = int(re.search(r'\d\d\d\d',files[ix_pair]).group(0))
+                frame_numbers.append(frame_number)
                 found,lcorners = cv2.findChessboardCorners(frame,self.board_dims)
                 if not found:
                     raise ValueError("Could not find corners in image '{0:s}'".format(files[ix_pair]))
@@ -167,6 +177,24 @@ class CalibrateVideoApplication:
                 video.imgpoints.append(lcorners)
                 cam_frame_ct+=1
             usable_frame_ct = min(usable_frame_ct,cam_frame_ct)
+            frame_number_sets.append(frame_numbers)
+        
+        if(len(self.videos) > 1):
+            #check that all videos have the same frame number sets
+            if(len(frame_number_sets[0]) != len(frame_number_sets[1])):
+                raise ValueError("There are some non-paired frames in folder '{0:s}'".format(self.full_frame_folder_path))
+            for i_fn in range(len(frame_number_sets[0])):
+                fn0 = frame_number_sets[0][i_fn]
+                fn1 = frame_number_sets[1][i_fn]
+                if(fn0 != fn1):
+                    raise ValueError("There are some non-paired frames in folder '{0:s}'."+
+                                     " Check frame {1:d} for video {2:s} and frame {3:d} for video {4:s}."
+                                     .format(self.full_frame_folder_path, 
+                                             fn0, self.videos[0].name,
+                                             fn1, self.videos[1].name))
+            
+        self.frame_numbers = self.frame_number_sets[0]
+        
         for i_frame in range(usable_frame_ct):#@UnusedVariable
             self.objpoints.append(self.board_object_corner_set)
         return usable_frame_ct
@@ -184,6 +212,7 @@ class CalibrateVideoApplication:
                                "{0:s}{1:04d}{2:s}".format(video.name,i_frame,".png")))
                 cv2.imwrite(fname, video.frame)
             video.imgpoints.append(video.current_corners)
+        self.frame_numbers.append(i_frame)
         self.objpoints.append(self.board_object_corner_set)
     
     def filter_frame_manually(self):
@@ -307,6 +336,7 @@ class CalibrateVideoApplication:
                 for video in self.videos:
                     file_dict["imgpoints"+str(video.index)] = video.imgpoints
                 file_dict["object_point_set"]=self.board_object_corner_set
+                file_dict["frame_numbers"]=self.frame_numbers
                 np.savez_compressed(self.full_corners_path,**file_dict)
                 
         print ("Total usable frames: {0:d} ({1:.3%})"
@@ -340,6 +370,10 @@ class CalibrateVideoApplication:
                 path_r = osp.join(self.args.folder,self.args.preview_files[1][:-4] + "_rect.png")
                 cv2.imwrite(path_l, l_im)
                 cv2.imwrite(path_r, r_im)
+                
+            self.calibration = calibration_result
+            self.videos[0].calib = calibration_result.intrinsics[0]
+            self.videos[1].calib = calibration_result.intrinsics[1]
         else:
             flags = 0
             if self.initial_calibration != None:
@@ -353,7 +387,53 @@ class CalibrateVideoApplication:
                 flags += cv2.CALIB_RATIONAL_MODEL
             calibration_result = cutils.calibrate(self.objpoints, self.video.imgpoints, flags, 
                                                   criteria, self.video.calib)
+            self.calibration = calibration_result
+            self.video.calib = calibration_result
         if not self.args.skip_printing_output:
             print(calibration_result)
         if not self.args.skip_saving_output:
-            cio.save_opencv_stereo_calibration(osp.join(self.args.folder,self.args.output), calibration_result)
+            cio.save_opencv_stereo_calibration(osp.join(self.args.folder,self.args.output), 
+                                               calibration_result)
+        
+    def calculate_transform_pairs(self, verbose = True):
+        '''
+        Find camera positions at each filtered frame AND the next usable frame
+        '''
+        camera_transforms_sets = []
+        for video in self.videos:
+            camera_transforms = []
+            for ix_pos in range(len(video.imgpoints)):
+                #find camera rotation and translation for the filtered frame
+                source_frame_number = self.frame_numbers[ix_pos]
+                imgpoints = video.imgpoints[ix_pos]
+                objpoints = self.objpoints[ix_pos]
+                retval, rvec, tvec = cv2.sovlePnP(objpoints, imgpoints, video.calib.intrinsic_mat, 
+                                                    video.calib.distortion_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
+                source_frame_transform = (rvec, tvec)
+                if(retval):
+                    #find camera rotation and translation at the next frame
+                    video.scroll_to_frame(source_frame_number+1)
+                    video.read_next_frame()
+                    if(self.__automatic_filter_basic()):
+                        grey_frame = cv2.cvtColor(video.frame,cv2.COLOR_BGR2GRAY)
+                        cv2.cornerSubPix(grey_frame, video.current_corners, (11,11),(-1,-1),self.criteria_subpix)
+                        retval, rvec, tvec = cv2.sovlePnP(objpoints, video.current_corners, video.calib.intrinsic_mat, 
+                                                    video.calib.distortion_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
+                        target_frame_transform = (rvec,tvec)
+                        camera_transforms.append((source_frame_transform,target_frame_transform))
+            if(verbose):
+                print("Added {0:d} usable transform pairs for video {1:s}".format(len(camera_transforms), video.name))
+            camera_transforms_sets.append(camera_transforms)
+        return camera_transforms_sets
+
+            
+    def perform_time_sliding_adjustment(self, verbose = True):
+        '''
+        This routine will take care of 1-frame time offset between cameras that were not synchronized 
+        or not genlocked. It is not currently completed. 
+        '''
+        #TODO: finish later if need be
+        frame_duration = 1.0 / self.video[1].fps
+        camera_transorm_sets = self.calculate_transform_pairs()
+        
+       

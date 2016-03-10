@@ -32,7 +32,7 @@ class SyncVideoApp(object):
         '''
         #(preparatory work goes here)
         self.args = args
-        if(args.output[0] == None):
+        if(not args.calculate_offset_only and args.output[0] == None):
             for ix in range(0,len(args.videos)):
                 if("raw_" in args.videos[ix] and len(args.videos[ix]) > 4):
                     args.output[ix] = args.videos[ix].replace("raw_", "")
@@ -40,20 +40,27 @@ class SyncVideoApp(object):
                     args.output[ix] = args.videos[ix][:-4] + "_out.mp4"  
             print("Output filenames not set.\n  Setting output filenames to:"+
                   " {0:s}. ATTENTION: will overwrite.".format(str(args.output)))
-                
+        self.offset = None
         self.board_dims = (args.board_width,args.board_height)
+        
+    def calc_offset(self, verbose = True):
+        args = self.args
+        offset, frame_rate = find_time_offset(args.videos, args.folder, args.audio_delay)
+        if(verbose):
+            print("Offset: {0:s}".format(str(offset)))
+        self.offset = offset; self.frame_rate = frame_rate
         
     def run_sync(self):
         args = self.args
         
-        offset, frame_rate = find_time_offset(args.videos, args.folder, args.audio_delay)#@UnusedVariable
-        print("Offset: {0:s}".format(str(offset)))
+        if(not self.offset):
+            self.calc_offset()
         
         if(args.calibration_clip):
-            frame_ranges, time_ranges = find_calibration_conversion_range(args.videos, args.folder, offset, self.board_dims, 
+            frame_ranges, time_ranges = find_calibration_conversion_range(args.videos, args.folder, self.offset, self.board_dims, 
                                                        args.calibration_seek_interval, args.trim_end)
         else:
-            frame_ranges, time_ranges = find_offset_range(args.videos, args.folder, offset, args.trim_end)
+            frame_ranges, time_ranges = find_offset_range(args.videos, args.folder, self.offset, args.trim_end)
         print("Final clip ranges (in frames): {0:s}".format(str(frame_ranges)))
         recode_ffmpeg(args.videos, args.folder, time_ranges, args.flip, args.output, args.preserve_audio)
         

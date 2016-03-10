@@ -34,6 +34,7 @@ class Setting(Enum):
     output = "output"
     board_width = "board_width"
     board_height = "board_height"
+    calculate_offset_only = "calculate_offset_only"
     calibration_clip = "calibration_clip"
     calibration_seek_interval = "calibration_seek_interval"
     trim_end = "trim_end"
@@ -50,6 +51,7 @@ def main(argv=None):
        Setting.output.name: [None,None],
        Setting.board_width.name: 9,
        Setting.board_height.name: 6,
+       Setting.calculate_offset_only.name: False,
        Setting.calibration_clip.name: True,
        Setting.calibration_seek_interval.name: 1.0,
        Setting.trim_end.name:20.0,
@@ -64,6 +66,7 @@ def main(argv=None):
                                      "and audio, and apply the audio_delay parameter.")
 
     #============== INPUT / OUTPUT PATHS ==========================================================#
+    
     parser.add_argument("-f", "--" + Setting.folder.name, help="Path to root folder to work in", 
                         required=False, default=defaults[Setting.folder.name])
     parser.add_argument("-v", "--" + Setting.videos.name,metavar="VIDEO", nargs=2,
@@ -75,7 +78,11 @@ def main(argv=None):
                         " relative to the 'folder' argument", 
                         required=False, default=defaults[Setting.output.name])
     
-    #============== RANGE CLIPPING ================================================================#
+    #============== RANGE CLIPPING & MODES ========================================================#
+    parser.add_argument("-coo", "--" + Setting.calculate_offset_only.name, action="store_true",
+                        help="Only calculate the offset between the videos (does not recode or "+
+                        "save output videos.)", required=False, 
+                        default=defaults[Setting.calculate_offset_only.name])
     parser.add_argument("-ncc", "--no-" + Setting.calibration_clip.name, dest=Setting.calibration_clip.name,
                         help="Use this option to disable calibration mode."+
                         "In calibration clip mode (default), the algorithm seeks out when a "+
@@ -119,7 +126,9 @@ def main(argv=None):
         raise ValueError("The number of input videos specified does not match the number of specified output files.")
     
     app = SyncVideoApp(args)
-    app.run_sync()
+    app.calc_offset(verbose=True)
+    if(not args.calculate_offset_only):
+        app.run_sync()
 
 if __name__ == "__main__":
     sys.exit(main())

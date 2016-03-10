@@ -40,7 +40,13 @@ def parse_frame_rate(ffmpeg_output):
     @rtype float
     @return frame rate of input video
     '''
-    return float(re.search('(\d\d\.\d\d)\sfps', ffmpeg_output).group(1))
+    search_res = re.search('(\d\d\.\d\d)\sfps', ffmpeg_output)
+    if(search_res is None):
+        print("Could not determine frame rate from ffmpeg output. Printing output...")
+        print("=====================================================================")
+        print(ffmpeg_output)
+        return 0.0
+    return float(search_res.group(1))
 
 # Read file
 # INPUT: Audio file
