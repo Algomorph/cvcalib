@@ -174,7 +174,7 @@ def find_time_offset(video_filenames, folder, audio_delays, fft_bin_size=512, ov
     @param video_filenames: filenames of the two videos 
     @param folder: absolute or relative directory wherein the two videos are located
     @type audio_delays: list[float]
-    @param audio_delays: delay between video and audio, in seconds, in the first and second video files respectively 
+    @param audio_delays: delay between video and audio, in audio_offset_s, in the first and second video files respectively 
     @param fft_bin_size: size of the FFT bins, i.e. segments of audio, in beats, for which a separate 
     peak is found
     @param overlap: overlap between each bin
@@ -221,17 +221,24 @@ def find_time_offset(video_filenames, folder, audio_delays, fft_bin_size=512, ov
     delay = find_delay(pairs)
     samples_per_sec = rate1 / (fft_bin_size-(overlap/2))
 
-    seconds = delay / samples_per_sec
+    audio_offset_s = delay / samples_per_sec
     
-    #(manually compute difference in delay between video and audio for both videos as diff1 and diff2,
-    # correction = diff1 - diff2)
-    correction = audio_delays[0] - audio_delays[1]
-    seconds = round(seconds, 4)
+    #(manually compute difference in delay between video and audio for both videos)
+    # Delay = d0, d1
+    # Audio = a0, a1
+    # Find offset x:
+    # v0 + 0 = v1 + x
+    # x = v0 - v1
+    # v0 + d0 = a0
+    # v1 + d1 = a1
+    # x = (a0 - d0) - (a1 - d1) = (a0 - a1) - (d1 - d0) =  audio_offset_s - correction
+    correction = audio_delays[1] - audio_delays[0]
+    audio_offset_s = round(audio_offset_s, 4)
  
-    if seconds > 0:
-        return ((0, seconds + correction), frame_rate1)
+    if audio_offset_s > 0:
+        return ((0, audio_offset_s - correction), frame_rate1)
     else:
-        return ((abs(seconds) + correction, 0), frame_rate1)
+        return ((abs(audio_offset_s) - correction, 0), frame_rate1)
 
 
 
