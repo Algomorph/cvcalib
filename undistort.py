@@ -15,7 +15,7 @@ def main(argv=None):
     parser.add_argument("-f", "--folder", help="Path to root folder to work in", 
                     required=False, default="./")
 
-    parser.add_argument("-f", "--calibration_result_file", 
+    parser.add_argument("-c", "--calibration_result_file", 
                         help="A calibration result file procded by 'calibrate video opencv.py'", 
                         required=False, default= "./cvcalib.xml")
     
@@ -27,27 +27,25 @@ def main(argv=None):
     parser.add_argument("-o", "--output", help="Output file names, undistored image(s)"
                         , metavar="PATH", action=required_length(1, 2), required=False,
                         default=["left_rect.png", "right_rect.png"])
-    parser.add_argument("-f","--canvas_size_factor", help="Output canvas size, in pixels, will be "+
+    parser.add_argument("-cf","--canvas_size_factor", help="Output canvas size, in pixels, will be "+
                         "(input_width * canvas_size_factor, input_height * canvas_size_factor)",
                         type=float, default=1.8)
 
     
     args = parser.parse_args()
-    if(not osp.isfile(args.calibration_result_file)):
-        raise ValueError("The file at " + args.calibration_result_file + " could not be openened.")
 
-    calibration_info = cio.load_opencv_calibration(args.calibration_result_file)
+    calibration_info = cio.load_opencv_calibration(osp.join(args.folder, args.calibration_result_file))
     if(args.verbose):
         print(calibration_info)
     
-    if(type(calibration_info) == cdata.StereoExtrinsics):
+    if(type(calibration_info) == cdata.CameraIntrinsics):
         if(len(args.images) > 1):
             print("Warning: provided a single-camera calibration but more than one input image."+
                   " Using only the first one.")
-            
+        
         img = cv2.imread(osp.join(args.folder,args.images[0]))
         
-        if(img.shape != (calibration_info.resolution.height, calibration_info.resolution.width)):
+        if((img.shape[0],img.shape[1]) != calibration_info.resolution):
             raise ValueError("Image size does not correspond to resolution provided in the calibration file.")
         
         cf = args.canvas_size_factor
@@ -72,10 +70,10 @@ def main(argv=None):
         c0 = sc.intrinsics[0]
         c1 = sc.intrinsics[1]
         
-        if(left.shape != (c0.resolution.height, c0.resolution.width)):
+        if((left.shape[0],left.shape[1]) != c0.resolution):
             raise ValueError("Left image size does not correspond to resolution provided in the calibration file.")
         
-        if(left.shape != (c0.resolution.height, c0.resolution.width)):
+        if((right.shape[0],right.shape[1]) != c1.resolution):
             raise ValueError("Right image size does not correspond to resolution provided in the calibration file.")
       
         cf = args.canvas_size_factor

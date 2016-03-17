@@ -25,7 +25,10 @@ from ast import literal_eval
 def required_length(nmin,nmax):
     class RequiredLength(argparse.Action):
         def __call__(self, conf_parser, args, values, option_string=None):
+            if(type(values) == str):
+                values = [values]
             if not nmin<=len(values)<=nmax:
+                print(values)
                 msg='argument "{f}" requires between {nmin} and {nmax} arguments'.format(
                     f=self.dest,nmin=nmin,nmax=nmax)
                 raise argparse.ArgumentTypeError(msg)

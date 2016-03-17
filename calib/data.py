@@ -25,8 +25,8 @@ import cv2#@UnresolvedImport
 
 def _resolution_from_xml(element):
     resolution_elem = element.find("resolution")
-    width = float(resolution_elem.find("width").text)
-    height = float(resolution_elem.find("height").text)
+    width = int(resolution_elem.find("width").text)
+    height = int(resolution_elem.find("height").text)
     return (height, width)
 
 def _resolution_to_xml(element, resolution):
