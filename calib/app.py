@@ -392,7 +392,7 @@ class CalibrateVideoApplication:
         if not self.args.skip_printing_output:
             print(calibration_result)
         if not self.args.skip_saving_output:
-            cio.save_opencv_stereo_calibration(osp.join(self.args.folder,self.args.output), 
+            cio.save_opencv_calibration(osp.join(self.args.folder,self.args.output), 
                                                calibration_result)
         
     def calculate_transform_pairs(self, verbose = True):
