@@ -17,7 +17,7 @@
  limitations under the License.
 '''
 import re
-from lxml import etree
+from lxml import etree#@UnresolvedImport
 import numpy as np
 
 def make_opencv_matrix_xml_element(root, mat, name):

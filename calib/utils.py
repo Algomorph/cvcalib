@@ -37,6 +37,7 @@ def calibrate(objpoints, imgpoints, flags, criteria, calibration_info, verbose =
     calibration_info.time = end - start
     return calibration_info
 
+
 def generate_preview(stereo_calib_info, test_im_left, test_im_right):
     im_size = test_im_left.shape
     new_size = (int(im_size[1]*1.5),int(im_size[0]*1.5))
@@ -77,8 +78,8 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
         flags += cv2.CALIB_USE_INTRINSIC_GUESS
         result.id = signature
     else:
-        result = data.StereoCalibrationInfo((data.CameraCalibrationInfo(resolution, index=0),
-                                             data.CameraCalibrationInfo(resolution, index=1)), 
+        result = data.StereoExtrinsics((data.CameraIntrinsics(resolution, index=0),
+                                             data.CameraIntrinsics(resolution, index=1)), 
                                              _id=signature)
     #shorten notation later in the code
     cam0 = result.intrinsics[0]

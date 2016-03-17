@@ -9,6 +9,7 @@ import calib.geom as geom
 import calib.data as data
 
 
+#TODO: corner saving/loading for whatever reason is now broken, fix
 def load_corners(path, board_height = None, board_width = None, board_square_size = None):
     npzfile = np.load(path)
     if 'object_point_set' in npzfile:
@@ -34,11 +35,11 @@ def load_opencv_stereo_calibration(path):
     @type path: str
     @param path: path to xml file
     @return stereo calibration: loaded from the given xml file
-    @rtype calib.data.StereoCalibrationInfo
+    @rtype calib.data.StereoExtrinsics
     '''
     tree = etree.parse(path)
-    stereo_calib_elem = tree.find("StereoCalibrationInfo")
-    return data.StereoCalibrationInfo.from_xml(stereo_calib_elem)
+    stereo_calib_elem = tree.find("StereoExtrinsics")
+    return data.StereoExtrinsics.from_xml(stereo_calib_elem)
 
 def load_opencv_single_calibration(path):
     '''
@@ -46,11 +47,11 @@ def load_opencv_single_calibration(path):
     @type path: str
     @param path: path to xml file
     @return calibration info: loaded from the given xml file
-    @rtype calib.data.CameraCalibrationInfo
+    @rtype calib.data.CameraIntrinsics
     '''
     tree = etree.parse(path)
-    calib_elem = tree.find("CameraCalibrationInfo")
-    return data.CameraCalibrationInfo.from_xml(calib_elem)
+    calib_elem = tree.find("CameraIntrinsics")
+    return data.CameraIntrinsics.from_xml(calib_elem)
 
 def load_opencv_calibration(path):
     '''
@@ -58,23 +59,23 @@ def load_opencv_calibration(path):
     @type path: str
     @param path: path to xml file
     @return calibration info: loaded from the given xml file
-    @rtype calib.data.CameraCalibrationInfo | calib.data.StereoCalibrationInfo
+    @rtype calib.data.CameraIntrinsics | calib.data.StereoExtrinsics
     '''
     tree = etree.parse(path)
-    calib_elem = tree.find("CameraCalibrationInfo")
+    calib_elem = tree.find("CameraIntrinsics")
     if(calib_elem is not None):
-        calib_info = data.CameraCalibrationInfo.from_xml(calib_elem)
+        calib_info = data.CameraIntrinsics.from_xml(calib_elem)
     else:
-        stereo_calib_elem = tree.find("StereoCalibrationInfo")
+        stereo_calib_elem = tree.find("StereoExtrinsics")
         if(stereo_calib_elem is None):
             raise ValueError("Unexpected calibration format in file {0:s}".format(path))
-        calib_info = data.StereoCalibrationInfo.from_xml(stereo_calib_elem)
+        calib_info = data.StereoExtrinsics.from_xml(stereo_calib_elem)
     return calib_info
 
-
-def save_opencv_stereo_calibration(path, stereo_calibration_info):
+    
+def save_opencv_calibration(path, calibration_info):
     root = etree.Element("opencv_storage")
-    stereo_calibration_info.to_xml(root)
+    calibration_info.to_xml(root)
     et = etree.ElementTree(root)
     with open(path,'wb') as f:
         et.write(f,encoding="utf-8",xml_declaration=True, pretty_print=True)

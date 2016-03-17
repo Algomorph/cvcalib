@@ -23,7 +23,7 @@ import cv2#@UnresolvedImport
 import numpy as np
 import calib.utils as cutils
 from calib import io as cio
-from calib.data import Video, StereoCalibrationInfo
+from calib.data import Video, StereoExtrinsics
 import datetime
 import sys
 import re
@@ -78,7 +78,7 @@ class CalibrateVideoApplication:
         if(args.load_calibration_file != None):
             full_path = osp.join(args.folder, args.load_calibration_file)
             self.initial_calibration = cio.load_opencv_calibration(full_path)
-            if(len(args.videos) == 1 and type(self.initial_calibration) == StereoCalibrationInfo):
+            if(len(args.videos) == 1 and type(self.initial_calibration) == StereoExtrinsics):
                 raise ValueError("Got only one video input, \'{0:s}\', but a stereo calibration "+
                                  "input file '{0:s}'".format(self.video.name, args.load_calibration_file))
         else:

@@ -71,7 +71,7 @@ class Video(object):
                            int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))#@UndefinedVariable
         self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) #@UndefinedVariable
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        self.calib = CameraCalibrationInfo(self.frame_dims, index = index )
+        self.calib = CameraIntrinsics(self.frame_dims, index = index )
         if(self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
             self.n_channels = 3
         else:
@@ -113,7 +113,7 @@ class Video(object):
         if self.cap != None:
             self.cap.release()
 
-class CameraCalibrationInfo(object):
+class CameraIntrinsics(object):
     '''
     Represents videos of a camera, i.e. intrinsic matrix & distortion coefficients
     '''
@@ -149,7 +149,7 @@ class CameraCalibrationInfo(object):
         @param root_element: the root element to build under
         '''
         if(as_sequence == False):
-            elem_name = "CameraCalibrationInfo"
+            elem_name = "CameraIntrinsics"
         else:
             elem_name = "_"
         intrinsics_elem = etree.SubElement(root_element,elem_name,attrib={"index":str(self.index)})
@@ -169,17 +169,17 @@ class CameraCalibrationInfo(object):
     def from_xml(element):
         '''
         @type element: lxml.etree.SubElement
-        @param element: the element to construct an CameraCalibrationInfo object from
-        @return a new CameraCalibrationInfo object constructed from XML node with matrices in OpenCV format
+        @param element: the element to construct an CameraIntrinsics object from
+        @return a new CameraIntrinsics object constructed from XML node with matrices in OpenCV format
         '''
         resolution = _resolution_from_xml(element)
         intrinsic_mat = xml.parse_xml_matrix(element.find("intrinsic_mat"))
         distortion_coeffs = xml.parse_xml_matrix(element.find("distortion_coeffs"))
         error, time = _error_and_time_from_xml(element)
         index = int(element.get("index"))
-        return CameraCalibrationInfo(resolution, intrinsic_mat, distortion_coeffs, error, time, index)
+        return CameraIntrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time, index)
     
-class StereoCalibrationInfo(object):
+class StereoExtrinsics(object):
     _unnamed_instance_counter = 0
     '''
     Represents the results of a stereo calibration procedure, including all the information
@@ -191,7 +191,7 @@ class StereoCalibrationInfo(object):
                  fundamental_mat = np.eye(3,dtype=np.float64), error = -1.0, time = 0.0, _id = None):
         '''
         Constructor
-        @type intrinsics: tuple[calib.data.CameraCalibrationInfo]
+        @type intrinsics: tuple[calib.data.CameraIntrinsics]
         @param intrinsics: tuple composed of two videos of the stereo camera pair.
         @type rotation: numpy.ndarray
         @param rotation: 3x3 rotation matrix from camera 0 to camera 1
@@ -210,8 +210,8 @@ class StereoCalibrationInfo(object):
         self.error = error
         self.time = time
         if(_id is None):
-            self.id = StereoCalibrationInfo._unnamed_instance_counter
-            StereoCalibrationInfo._unnamed_instance_counter+=1
+            self.id = StereoExtrinsics._unnamed_instance_counter
+            StereoExtrinsics._unnamed_instance_counter+=1
         else:
             self.id = _id
         
@@ -222,7 +222,7 @@ class StereoCalibrationInfo(object):
         @param root_element: the root element to build under
         '''
         if(as_sequence == False):
-            elem_name = "StereoCalibrationInfo"
+            elem_name = "StereoExtrinsics"
         else:
             elem_name = "_"
         stereo_calib_elem = etree.SubElement(root_element, elem_name,
@@ -248,23 +248,23 @@ class StereoCalibrationInfo(object):
     @staticmethod
     def from_xml(element):
         '''
-        Build a StereoCalibrationInfo object out of the given xml node
+        Build a StereoExtrinsics object out of the given xml node
         @type element: lxml.etree.SubElement
-        @param element: the element to construct an StereoCalibrationInfo object from
-        @return a new StereoCalibrationInfo object constructed from XML node with matrices in 
+        @param element: the element to construct an StereoExtrinsics object from
+        @return a new StereoExtrinsics object constructed from XML node with matrices in 
         OpenCV format
         '''
         cameras_elem = element.find("Cameras")
         intrinsics = []
-        intrinsics.append(CameraCalibrationInfo.from_xml(cameras_elem[0]))
-        intrinsics.append(CameraCalibrationInfo.from_xml(cameras_elem[1]))
+        intrinsics.append(CameraIntrinsics.from_xml(cameras_elem[0]))
+        intrinsics.append(CameraIntrinsics.from_xml(cameras_elem[1]))
         rotation = xml.parse_xml_matrix(element.find("rotation"))
         translation = xml.parse_xml_matrix(element.find("translation"))
         essential_mat = xml.parse_xml_matrix(element.find("essential_mat"))
         fundamental_mat = xml.parse_xml_matrix(element.find("fundamental_mat"))
         error, time = _error_and_time_from_xml(element)
         _id = element.get("id")
-        return StereoCalibrationInfo(intrinsics, rotation, translation, essential_mat,
+        return StereoExtrinsics(intrinsics, rotation, translation, essential_mat,
                                      fundamental_mat, error, time)
         
         
