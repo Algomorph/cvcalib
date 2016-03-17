@@ -166,7 +166,9 @@ def find_delay(time_pairs):
 
 
 # Find time offset between two video files
-def find_time_offset(video_filenames, folder, audio_delays, fft_bin_size=512, overlap=0, box_height=512, box_width=43, samples_per_box=7):
+def find_time_offset(video_filenames, folder, audio_delays, 
+                     fft_bin_size=512, overlap=0, 
+                     box_height=512,box_width=43,samples_per_box=7):
     '''
     Find time offset between two video files and the frame rate 
     (requires for frame and bit rates of the two videos to be the same)
