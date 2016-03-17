@@ -193,7 +193,7 @@ class CalibrateVideoApplication:
                                              fn0, self.videos[0].name,
                                              fn1, self.videos[1].name))
             
-        self.frame_numbers = self.frame_number_sets[0]
+        self.frame_numbers = frame_number_sets[0]
         
         for i_frame in range(usable_frame_ct):#@UnusedVariable
             self.objpoints.append(self.board_object_corner_set)
