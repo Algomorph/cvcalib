@@ -319,7 +319,7 @@ class CalibrateVideoApplication:
         if(self.args.load_corners):
             print("Loading corners from {0:s}".format(self.full_corners_path))    
             imgpoints, self.objpoints, usable_frame_ct =\
-            cio.load_corners(self.full_corners_path)
+            cio.load_corners(self.full_corners_path)[0:3]
             usable_frame_ct = len(self.objpoints)
             for video in self.videos:
                 video.imgpoints = imgpoints[video.index]
