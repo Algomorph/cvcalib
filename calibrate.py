@@ -22,9 +22,10 @@ import sys
 import os.path as osp
 import argparse as ap
 from enum import Enum
-from calib.app import CalibrateVideoApplication
 from common.args import required_length
 from yaml import load, dump
+from calib.synced_calib_app import SyncedCalibApplication
+
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
 except ImportError:
@@ -59,8 +60,12 @@ class Setting(Enum):
     use_rational_model = "use_rational_model"
     use_tangential_coeffs = "use_tangential_coeffs"
     use_fisheye_model = "use_fisheye_model"
+    
     output = "output"
-    load_calibration_file = "load_calibration_file"
+    input_calibration = "input_calibration"
+    
+    #TODO: make a max_time_offset as well for convenience
+    max_frame_offset = "max_frame_offset"
     
     skip_printing_output = "skip_printing_output"
     skip_saving_output = "skip_saving_output"
@@ -100,8 +105,11 @@ def main(argv=None):
         Setting.use_rational_model.name:False,
         Setting.use_tangential_coeffs.name:False,
         Setting.use_fisheye_model.name:False,
-        Setting.output.name:None,
-        Setting.load_calibration_file.name:None,
+        
+        Setting.output.name:None, 
+        Setting.input_calibration.name:None,
+        
+        Setting.max_frame_offset.name:100,
         
         Setting.skip_printing_output.name:False,
         Setting.skip_saving_output.name:False,
@@ -146,7 +154,7 @@ def main(argv=None):
                         required=False, default=defaults[Setting.videos.name])
     
     #============== CALIBRATION PREVIEW ===========================================================#
-    #currently does not work due to OpenCV python bindings bug
+    #TODO: test
     parser.add_argument("-cpf", "--" + Setting.preview_files.name, nargs='+', help="input frames to test"+
                         " calibration result (currently only for stereo)", 
                         required=False, default= ["left.png","right.png"], action=required_length(1, 2))
@@ -201,7 +209,7 @@ def main(argv=None):
                         " (skips gathering frame data)", 
                         required = False, 
                         default=defaults[Setting.load_corner_positions.name])
-
+    
     #============== CALIBRATION & DISTORTION MODEL CONTROLS =======================================#
     parser.add_argument("-ci", "--" + Setting.max_iterations.name, 
                         help="maximum number of iterations for the stereo"+
@@ -213,7 +221,7 @@ def main(argv=None):
                         default=defaults[Setting.precalibrate_solo.name])
     parser.add_argument("-cso", "--" + Setting.stereo_only.name, 
                         help="Fix intrinsics and perform stereo calibration only."
-                        +" Useful in conjunction with the " + Setting.load_calibration_file.name +
+                        +" Useful in conjunction with the " + Setting.input_calibration.name +
                         " option. Does nothing for single-camera calibration.", action='store_true', 
                         required=False, default=defaults[Setting.stereo_only.name])
     parser.add_argument("-cr", "--" + Setting.use_rational_model.name,
@@ -228,17 +236,26 @@ def main(argv=None):
                         help="Use the fisheye distortion model (WARNING: OpenCV3 python bindings may still be broken!)", 
                         action='store_true', 
                         required = False, default=defaults[Setting.use_fisheye_model.name])
+    
+    #============== INPUT/OUTPUT CALIBRATION FILES ================================================#
     #TODO this should be a separate setting from output file
-    parser.add_argument("-cl", "--" + Setting.load_calibration_file.name, 
+    parser.add_argument("-cl", "--" + Setting.input_calibration.name, 
                         help="an existing calibration output file to initialize calibration parameters (optional).", 
-                        type=str, required = False, default=defaults[Setting.load_calibration_file.name])
+                        type=str, required = False, default=defaults[Setting.input_calibration.name])
     parser.add_argument("-co", "--" + Setting.output.name, help="output file to store calibration results (relative to 'folder')", 
                         required = False, default=defaults[Setting.output.name])
-    #==============================================================================================#
+    
+    #============== MAXIMUM FRAME OFFSET ==========================================================#
+    parser.add_argument("-mfo", "--" + Setting.max_frame_offset.name, 
+                    help="Used for unsynched calibration only: maximum delay, in frames, between videos",
+                    required = False, default=defaults[Setting.max_frame_offset.name], type=int)
+    
+    #============== SKIP CERTAIN OPERATIONS =======================================================#
     parser.add_argument("-skp", "--" + Setting.skip_printing_output.name, action='store_true', 
                         required = False, default= defaults[Setting.skip_printing_output.name])
     parser.add_argument("-sko", "--" + Setting.skip_saving_output.name, action='store_true', 
                         required = False, default= defaults[Setting.skip_saving_output.name])
+    
     #============== FILTERED IMAGE/FRAME BACKUP & LOADING =========================================#
     parser.add_argument("-if", "--" + Setting.filtered_image_folder.name, help="filtered frames"+
                         " will be saved into this folder (relative to work folder specified by --folder)", 
@@ -251,6 +268,7 @@ def main(argv=None):
                         help="load images previously picked out for calibration (skips frame gathering)", 
                         action='store_true', required = False, 
                         default= defaults[Setting.load_images.name])
+    
     parser.set_defaults(**defaults)
     args = parser.parse_args(remaining_argv)
 
@@ -262,7 +280,7 @@ def main(argv=None):
         dump(setting_dict, file_stream, Dumper=Dumper)
         file_stream.close()
     
-    app = CalibrateVideoApplication(args)
+    app = SyncedCalibApplication(args)
     app.gather_frame_data()
     app.run_calibration()
     

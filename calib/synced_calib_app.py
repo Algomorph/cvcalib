@@ -24,17 +24,20 @@ import numpy as np
 import calib.utils as cutils
 from calib import io as cio
 from calib.data import Video, StereoExtrinsics
-import datetime
 import sys
 import re
 import common.filter as cf 
+from calib.calib_app import CalibApplication
 
 
-class CalibrateVideoApplication:
+class SyncedCalibApplication(CalibApplication):
+    '''
+    Application class for calibration of single cameras or genlocked stereo cameras
+    '''
     min_frames_to_calibrate = 4
     def __init__(self,args):
-        self.video = Video(args.folder,args.videos[0], 0)
-        
+        CalibApplication.__init__(self, args)
+        #load videos
         if(len(args.videos) > 1):
             self.videos = [self.video, Video(args.folder, args.videos[1], 1)]
             self.__automatic_filter_basic = self.__automatic_filter_basic_stereo
@@ -48,46 +51,23 @@ class CalibrateVideoApplication:
             self.videos = [self.video]
             self.__automatic_filter_basic = self.__automatic_filter_basic_mono
             self.__automatic_filter = self.__automatic_filter_mono
-            self.total_frames = self.video.frame_count
-        
-        self.full_frame_folder_path = osp.join(args.folder,args.filtered_image_folder)
-        #if image folder (for captured frames) doesn't yet exist, create it
-        if args.save_images and not os.path.exists(self.full_frame_folder_path):
-            os.makedirs(self.full_frame_folder_path)
-        self.full_corners_path = osp.join(args.folder,args.corners_file)
-        
-        #set up board (3D object points of checkerboard used for calibration)
-        self.objpoints = []
-        self.board_dims = (args.board_width,args.board_height)
-        self.board_object_corner_set = np.zeros((args.board_height*args.board_width,1,3), np.float32)
-        self.board_object_corner_set[:,:,:2] = np.indices(self.board_dims).T.reshape(-1, 1, 2)
-        self.board_object_corner_set *= args.board_square_size
-        
-        self.frame_numbers = []
-        if args.frame_numbers:
-            path = osp.join(args.folder, args.frame_numbers)
-            print("Loading frame numbers from \"{0:s}\"".format(path))
-            npzfile = np.load(path)
-            self.frame_numbers = set(npzfile["frame_numbers"])
-            
-        self.criteria_subpix = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
-        self.frame_dims = self.video.frame_dims
+            self.total_frames = self.video.frame_count 
         
         
-        self.pixel_difference_factor = 1.0 / (self.board_dims[0] * self.board_dims[1] * 3 * 256.0)
-        if(args.load_calibration_file != None):
-            full_path = osp.join(args.folder, args.load_calibration_file)
+        #load existing calibration file if need-be
+        if(args.input_calibration != None):
+            full_path = osp.join(args.folder, args.input_calibration)
             self.initial_calibration = cio.load_opencv_calibration(full_path)
             if(len(args.videos) == 1 and type(self.initial_calibration) == StereoExtrinsics):
                 raise ValueError("Got only one video input, \'{0:s}\', but a stereo calibration "+
-                                 "input file '{0:s}'".format(self.video.name, args.load_calibration_file))
+                                 "input file '{0:s}'. Please provide a single camera's intrinsics."
+                                 .format(self.video.name, args.input_calibration))
         else:
             self.initial_calibration = None
-        if(args.output is None):
-            args.output = "calib{0:s}.xml".format(re.sub(r"-|:","",
-                                                         str(datetime.datetime.now())[:-7])
-                                                  .replace(" ","-"))
-        self.args = args
+
+
+        #some vars set to default
+        self.criteria_subpix = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
     
     def __automatic_filter_stereo(self):
         l_frame = self.videos[0].frame
@@ -344,7 +324,7 @@ class CalibrateVideoApplication:
         self.usable_frame_count = usable_frame_ct
                
     def run_calibration(self):
-        min_frames = CalibrateVideoApplication.min_frames_to_calibrate
+        min_frames = SyncedCalibApplication.min_frames_to_calibrate
         if self.usable_frame_count < min_frames:
             print("Not enough usable frames to calibrate."+
                   " Need at least {0:d}, got {1:d}".format(min_frames,self.usable_frame_count))
@@ -375,65 +355,13 @@ class CalibrateVideoApplication:
             self.videos[0].calib = calibration_result.intrinsics[0]
             self.videos[1].calib = calibration_result.intrinsics[1]
         else:
-            flags = 0
-            if self.initial_calibration != None:
-                self.video.calib = self.initial_calibration
-                flags += cv2.CALIB_USE_INTRINSIC_GUESS
-            criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, self.args.max_iterations, 
-                        2.2204460492503131e-16)
-            if not self.args.use_tangential_coeffs:
-                flags += cv2.CALIB_ZERO_TANGENT_DIST
-            if self.args.use_rational_model:
-                flags += cv2.CALIB_RATIONAL_MODEL
-            calibration_result = cutils.calibrate(self.objpoints, self.video.imgpoints, flags, 
-                                                  criteria, self.video.calib)
-            self.calibration = calibration_result
-            self.video.calib = calibration_result
+            cutils.calibrate_wrapper(self.objpoints, self.video,
+                      self.args.use_rational_model,
+                      self.args.use_tangential_coeffs,
+                      self.args.max_iterations,
+                      self.initial_calibration)
         if not self.args.skip_printing_output:
             print(calibration_result)
         if not self.args.skip_saving_output:
             cio.save_opencv_calibration(osp.join(self.args.folder,self.args.output), 
                                                calibration_result)
-        
-    def calculate_transform_pairs(self, verbose = True):
-        '''
-        Find camera positions at each filtered frame AND the next usable frame
-        '''
-        camera_transforms_sets = []
-        for video in self.videos:
-            camera_transforms = []
-            for ix_pos in range(len(video.imgpoints)):
-                #find camera rotation and translation for the filtered frame
-                source_frame_number = self.frame_numbers[ix_pos]
-                imgpoints = video.imgpoints[ix_pos]
-                objpoints = self.objpoints[ix_pos]
-                retval, rvec, tvec = cv2.sovlePnP(objpoints, imgpoints, video.calib.intrinsic_mat, 
-                                                    video.calib.distortion_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
-                source_frame_transform = (rvec, tvec)
-                if(retval):
-                    #find camera rotation and translation at the next frame
-                    video.scroll_to_frame(source_frame_number+1)
-                    video.read_next_frame()
-                    if(self.__automatic_filter_basic()):
-                        grey_frame = cv2.cvtColor(video.frame,cv2.COLOR_BGR2GRAY)
-                        cv2.cornerSubPix(grey_frame, video.current_corners, (11,11),(-1,-1),self.criteria_subpix)
-                        retval, rvec, tvec = cv2.sovlePnP(objpoints, video.current_corners, video.calib.intrinsic_mat, 
-                                                    video.calib.distortion_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
-                        target_frame_transform = (rvec,tvec)
-                        camera_transforms.append((source_frame_transform,target_frame_transform))
-            if(verbose):
-                print("Added {0:d} usable transform pairs for video {1:s}".format(len(camera_transforms), video.name))
-            camera_transforms_sets.append(camera_transforms)
-        return camera_transforms_sets
-
-            
-    def perform_time_sliding_adjustment(self, verbose = True):
-        '''
-        This routine will take care of 1-frame time offset between cameras that were not synchronized 
-        or not genlocked. It is not currently completed. 
-        '''
-        #TODO: finish later if need be
-        frame_duration = 1.0 / self.video[1].fps
-        camera_transorm_sets = self.calculate_transform_pairs()
-        
-       
