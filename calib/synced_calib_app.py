@@ -23,7 +23,8 @@ import cv2#@UnresolvedImport
 import numpy as np
 import calib.utils as cutils
 from calib import io as cio
-from calib.data import Video, StereoExtrinsics
+from calib.video import Video
+from calib.data import StereoRig
 import sys
 import re
 import common.filter as cf 
@@ -37,6 +38,14 @@ class SyncedCalibApplication(CalibApplication):
     min_frames_to_calibrate = 4
     def __init__(self,args):
         CalibApplication.__init__(self, args)
+        
+        self.frame_numbers = []
+        if args.frame_numbers:
+            path = osp.join(args.folder, args.frame_numbers)
+            print("Loading frame numbers from \"{0:s}\"".format(path))
+            npzfile = np.load(path)
+            self.frame_numbers = set(npzfile["frame_numbers"])
+            
         #load videos
         if(len(args.videos) > 1):
             self.videos = [self.video, Video(args.folder, args.videos[1], 1)]
@@ -53,12 +62,11 @@ class SyncedCalibApplication(CalibApplication):
             self.__automatic_filter = self.__automatic_filter_mono
             self.total_frames = self.video.frame_count 
         
-        
         #load existing calibration file if need-be
         if(args.input_calibration != None):
             full_path = osp.join(args.folder, args.input_calibration)
             self.initial_calibration = cio.load_opencv_calibration(full_path)
-            if(len(args.videos) == 1 and type(self.initial_calibration) == StereoExtrinsics):
+            if(len(args.videos) == 1 and type(self.initial_calibration) == StereoRig):
                 raise ValueError("Got only one video input, \'{0:s}\', but a stereo calibration "+
                                  "input file '{0:s}'. Please provide a single camera's intrinsics."
                                  .format(self.video.name, args.input_calibration))
@@ -91,8 +99,8 @@ class SyncedCalibApplication(CalibApplication):
         if not (lfound and rfound):
             return False
         
-        self.videos[0].current_corners = lcorners
-        self.videos[1].current_corners = rcorners
+        self.videos[0].current_image_points = lcorners
+        self.videos[1].current_image_points = rcorners
         
         return True
     
@@ -112,7 +120,7 @@ class SyncedCalibApplication(CalibApplication):
         if not found:
             return False
         
-        self.video.current_corners = corners
+        self.video.current_image_points = corners
         
         return True
         
@@ -121,7 +129,7 @@ class SyncedCalibApplication(CalibApplication):
         return cf.filter_basic_stereo(self.videos, self.board_dims)
     
     def __automatic_filter_basic_mono(self):
-        return cf.filter_basic_mono(self.video, self.board_dims)
+        return self.video.approximate_corners(self.board_dims)
 
     def load_frame_images(self):
         '''
@@ -179,19 +187,14 @@ class SyncedCalibApplication(CalibApplication):
             self.objpoints.append(self.board_object_corner_set)
         return usable_frame_ct
     
-    def add_corners(self, usable_frame_ct, report_interval, i_frame):
+    def add_corners_for_all(self, usable_frame_ct, report_interval, i_frame):
         if(usable_frame_ct % report_interval == 0):
             print ("Usable frames: {0:d} ({1:.3%})"
                    .format(usable_frame_ct, float(usable_frame_ct)/(i_frame+1)))
             
         for video in self.videos:
-            grey_frame = cv2.cvtColor(video.frame,cv2.COLOR_BGR2GRAY)
-            cv2.cornerSubPix(grey_frame, video.current_corners, (11,11),(-1,-1),self.criteria_subpix)
-            if(self.args.save_images):
-                fname = (osp.join(self.full_frame_folder_path,
-                               "{0:s}{1:04d}{2:s}".format(video.name,i_frame,".png")))
-                cv2.imwrite(fname, video.frame)
-            video.imgpoints.append(video.current_corners)
+            video.add_corners(i_frame, self.criteria_subpix, 
+                              self.full_frame_folder_path, self.args.save_images)
         self.frame_numbers.append(i_frame)
         self.objpoints.append(self.board_object_corner_set)
     
@@ -211,6 +214,9 @@ class SyncedCalibApplication(CalibApplication):
 
         continue_capture = 1
         for video in self.videos:
+            #just in case we're running capture again
+            video.clear_results()
+            video.scroll_to_beginning()
             #init capture
             video.read_next_frame()
             continue_capture &= video.more_frames_remain
@@ -234,7 +240,7 @@ class SyncedCalibApplication(CalibApplication):
                       
                 if add_corners:
                     usable_frame_ct += 1
-                    self.add_corners(usable_frame_ct, report_interval, i_frame)
+                    self.add_corners_for_all(usable_frame_ct, report_interval, i_frame)
                     #log last usable **filtered** frame
                     for video in self.videos:
                         video.set_previous_to_current()
@@ -257,6 +263,7 @@ class SyncedCalibApplication(CalibApplication):
         continue_capture = 1
         for video in self.videos:
             #just in case we're running capture again
+            video.clear_results()
             video.scroll_to_beginning()
             #init capture
             video.read_next_frame()
@@ -275,7 +282,7 @@ class SyncedCalibApplication(CalibApplication):
                       
                 if add_corners:
                     usable_frame_ct += 1
-                    self.add_corners(usable_frame_ct, report_interval, i_frame)
+                    self.add_corners_for_all(usable_frame_ct, report_interval, i_frame)
                     
                     #log last usable **filtered** frame
                     for video in self.videos:
@@ -297,12 +304,19 @@ class SyncedCalibApplication(CalibApplication):
         print("Gathering frame data...")
         usable_frame_ct = 0
         if(self.args.load_corners):
-            print("Loading corners from {0:s}".format(self.full_corners_path))    
-            imgpoints, self.objpoints, usable_frame_ct =\
-            cio.load_corners(self.full_corners_path)[0:3]
-            usable_frame_ct = len(self.objpoints)
-            for video in self.videos:
-                video.imgpoints = imgpoints[video.index]
+            self.board_object_corner_set, frame_numbers =\
+            cio.load_corners(self.full_corners_path, self.videos)
+            
+            if(type(frame_numbers) == type(None)):
+                self.frame_numbers = list(self.videos[0].used_frames.keys)
+            else:
+                #use legacy frame numbers
+                self.frame_numbers = frame_numbers
+            usable_frame_ct = len(self.video.imgpoints)
+            
+            for i_frame in range(usable_frame_ct): # @UnusedVariable
+                self.objpoints.append(self.board_object_corner_set)
+            
         else:
             if(self.args.load_images):
                 usable_frame_ct = self.load_frame_images()
@@ -311,13 +325,7 @@ class SyncedCalibApplication(CalibApplication):
             else:
                 usable_frame_ct = self.run_capture()            
             if self.args.save_corners:
-                print("Saving corners to {0:s}".format(self.full_corners_path))
-                file_dict = {}
-                for video in self.videos:
-                    file_dict["imgpoints"+str(video.index)] = video.imgpoints
-                file_dict["object_point_set"]=self.board_object_corner_set
-                file_dict["frame_numbers"]=self.frame_numbers
-                np.savez_compressed(self.full_corners_path,**file_dict)
+                cio.save_corners(self.full_corners_path, self.videos, self.board_object_corner_set)
                 
         print ("Total usable frames: {0:d} ({1:.3%})"
                .format(usable_frame_ct, float(usable_frame_ct)/self.total_frames))

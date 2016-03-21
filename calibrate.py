@@ -25,6 +25,7 @@ from enum import Enum
 from common.args import required_length
 from yaml import load, dump
 from calib.synced_calib_app import SyncedCalibApplication
+from calib.unsynced_calib_app import UnsyncedCalibApplication
 
 try:
     from yaml import CLoader as Loader, CDumper as Dumper

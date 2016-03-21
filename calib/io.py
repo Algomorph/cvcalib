@@ -7,32 +7,64 @@ from lxml import etree#@UnresolvedImport
 import numpy as np
 import calib.geom as geom
 import calib.data as data
+from calib.video import Pose
 
+
+IMAGE_POINTS = "image_points"
+FRAME_NUMBERS = "frame_numbers"
+OBJECT_POINT_SET = "object_point_set"
+POSES = "poses"
 
 #TODO: corner saving/loading for whatever reason is now broken, fix
-def load_corners(path, board_height = None, board_width = None, board_square_size = None):
-    npzfile = np.load(path)
-    if 'object_point_set' in npzfile:
-        objp = npzfile['object_point_set']
+def load_corners(path, videos, board_height = None, 
+                 board_width = None, board_square_size = None, 
+                 verbose = True):
+    if(verbose):
+        print("Loading corners from {0:s}".format(path))    
+    archive = np.load(path)
+    if OBJECT_POINT_SET in archive:
+        objp = archive[OBJECT_POINT_SET]
     else:
         objp = geom.generate_object_points(board_height, board_width, board_square_size)
-    imgpoints = []
-    npzfile.files.remove('object_point_set')
-    if 'frame_numbers' in npzfile:
-        frame_numbers = npzfile['frame_numbers']
-        npzfile.files.remove('frame_numbers')
+    archive.files.remove(OBJECT_POINT_SET)
+    
+    if FRAME_NUMBERS in archive:
+        frame_numbers = archive[FRAME_NUMBERS]
+        archive.files.remove(FRAME_NUMBERS)
     else:
         frame_numbers = None
-    npzfile.files.sort()
-    for array_name in npzfile.files:
-        imgpoints.append(npzfile[array_name])
+    
+    archive.files.sort()
+    for array_name in archive.files:
+        if(array_name.startswith(IMAGE_POINTS)):
+            ix_vid = int(array_name[len(IMAGE_POINTS):])
+            videos[ix_vid].imgpoints = archive[array_name]
+        elif(array_name.startswith(FRAME_NUMBERS)):
+            ix_vid = int(array_name[len(FRAME_NUMBERS):])
+            videos[ix_vid].usable_frames = {}
+            i_key = 0
+            for key in archive[array_name]:
+                videos[ix_vid].usable_frames[key] = i_key
+                i_key += 1 
+        elif(array_name.startswith(POSES)):
+            ix_vid = int(array_name[len(POSES):])
+            #process poses
+            videos[ix_vid].poses = [Pose(T) for T in archive[array_name]]
         
-    objpoints = []
-    usable_frame_ct = len(imgpoints[0])
-    for i_frame in range(usable_frame_ct): # @UnusedVariable
-        objpoints.append(objp)
-        
-    return imgpoints,objpoints, usable_frame_ct, frame_numbers
+    return objp, frame_numbers
+
+def save_corners(path, videos, object_point_set, verbose = True):
+    if(verbose):
+        print("Saving corners to {0:s}".format(path))
+    file_dict = {}
+    for video in videos:
+        file_dict[IMAGE_POINTS+str(video.index)] = video.imgpoints
+        file_dict[FRAME_NUMBERS+str(video.index)] = list(video.usable_frames.keys())
+        if(len(video.poses)>0):
+            file_dict[POSES+str(video.index)] = np.array([pose.T for pose in video.poses])
+             
+    file_dict[OBJECT_POINT_SET]=object_point_set
+    np.savez_compressed(path,**file_dict) 
 
 def load_opencv_stereo_calibration(path):
     '''
@@ -40,11 +72,11 @@ def load_opencv_stereo_calibration(path):
     @type path: str
     @param path: path to xml file
     @return stereo calibration: loaded from the given xml file
-    @rtype calib.data.StereoExtrinsics
+    @rtype calib.data.StereoRig
     '''
     tree = etree.parse(path)
-    stereo_calib_elem = tree.find("StereoExtrinsics")
-    return data.StereoExtrinsics.from_xml(stereo_calib_elem)
+    stereo_calib_elem = tree.find("StereoRig")
+    return data.StereoRig.from_xml(stereo_calib_elem)
 
 def load_opencv_single_calibration(path):
     '''
@@ -64,17 +96,17 @@ def load_opencv_calibration(path):
     @type path: str
     @param path: path to xml file
     @return calibration info: loaded from the given xml file
-    @rtype calib.data.CameraIntrinsics | calib.data.StereoExtrinsics
+    @rtype calib.data.CameraIntrinsics | calib.data.StereoRig
     '''
     tree = etree.parse(path)
     calib_elem = tree.find("CameraIntrinsics")
     if(calib_elem is not None):
         calib_info = data.CameraIntrinsics.from_xml(calib_elem)
     else:
-        stereo_calib_elem = tree.find("StereoExtrinsics")
+        stereo_calib_elem = tree.find("StereoRig")
         if(stereo_calib_elem is None):
             raise ValueError("Unexpected calibration format in file {0:s}".format(path))
-        calib_info = data.StereoExtrinsics.from_xml(stereo_calib_elem)
+        calib_info = data.StereoRig.from_xml(stereo_calib_elem)
     return calib_info
 
     

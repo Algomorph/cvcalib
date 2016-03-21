@@ -30,13 +30,8 @@ def filter_basic_stereo(videos, board_dims):
     if not (lfound and rfound):
         return False
     
-    videos[0].current_corners = lcorners
-    videos[1].current_corners = rcorners
+    videos[0].current_image_points = lcorners
+    videos[1].current_image_points = rcorners
     
     return True
 
-def filter_basic_mono(video, board_dims):
-    frame = video.frame
-    found,corners = cv2.findChessboardCorners(frame,board_dims)  
-    video.current_corners = corners
-    return found

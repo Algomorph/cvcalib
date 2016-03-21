@@ -98,7 +98,7 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
         flags += cv2.CALIB_USE_INTRINSIC_GUESS
         result.id = signature
     else:
-        result = data.StereoExtrinsics((data.CameraIntrinsics(resolution, index=0),
+        result = data.StereoRig((data.CameraIntrinsics(resolution, index=0),
                                              data.CameraIntrinsics(resolution, index=1)), 
                                              _id=signature)
     #shorten notation later in the code

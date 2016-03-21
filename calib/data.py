@@ -47,71 +47,7 @@ def _error_and_time_to_xml(element, error, time):
     time_element = etree.SubElement(element,"time")
     time_element.text = str(time)
 
-class Video(object):
-    '''
-    Represents a video object, a simple convenience wrapper around OpenCV's video_capture
-    '''
-    def __init__(self, directory, filename, index = 0):
-        '''
-        Build a camera from the specified file at the specified directory
-        '''
-        self.index = index
-        self.cap = None
-        if filename[-3:] != "mp4":
-            raise ValueError("Specified file does not have .mp4 extension.")
-        self.path = osp.join(directory, filename)
-        if not osp.isfile(self.path):
-            raise ValueError("No video file found at {0:s}".format(self.path))
-        self.name = filename[:-4]
-        self.cap = cv2.VideoCapture(self.path)
-        if not self.cap.isOpened():
-            raise ValueError("Could not open specified .mp4 file ({0:s}) for capture!".format(self.path))
-        self.imgpoints = []
-        self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),#@UndefinedVariable
-                           int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))#@UndefinedVariable
-        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT)) #@UndefinedVariable
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        self.calib = CameraIntrinsics(self.frame_dims, index = index )
-        if(self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
-            self.n_channels = 3
-        else:
-            self.n_channels = 1
-        self.current_corners = None
-        self.frame = np.zeros((self.frame_dims[0],self.frame_dims[1],self.n_channels), np.uint8)
-        self.previous_frame = np.zeros((self.frame_dims[0],self.frame_dims[1],self.n_channels), np.uint8)
-        self.more_frames_remain = True
-    
-    def read_next_frame(self):
-        self.more_frames_remain, self.frame = self.cap.read()
-    
-    def read_previous_frame(self):
-        '''
-        For traversing the video backwards.
-        '''
-        cur_frame_ix = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
-        if(cur_frame_ix == 0):
-            self.more_frames_remain = False
-            self.frame = None
-            return
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES,cur_frame_ix - 1)#@UndefinedVariable
-        self.more_frames_remain = True
-        self.frame = self.cap.read()[1]
-        
-    def set_previous_to_current(self):
-        self.previous_frame = self.frame
-        
-    def scroll_to_frame(self,i_frame):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES,i_frame)#@UndefinedVariable
-    
-    def scroll_to_beginning(self):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES,0.0)#@UndefinedVariable
-    
-    def scroll_to_end(self):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES,self.frame_count-1)#@UndefinedVariable
-        
-    def __del__(self):
-        if self.cap != None:
-            self.cap.release()
+
 
 class CameraIntrinsics(object):
     '''
@@ -179,7 +115,8 @@ class CameraIntrinsics(object):
         index = int(element.get("index"))
         return CameraIntrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time, index)
     
-class StereoExtrinsics(object):
+#TODO: StereoRig should contain video objects instead of intrinsics and be in its own separate module
+class StereoRig(object):
     _unnamed_instance_counter = 0
     '''
     Represents the results of a stereo calibration procedure, including all the information
@@ -210,8 +147,8 @@ class StereoExtrinsics(object):
         self.error = error
         self.time = time
         if(_id is None):
-            self.id = StereoExtrinsics._unnamed_instance_counter
-            StereoExtrinsics._unnamed_instance_counter+=1
+            self.id = StereoRig._unnamed_instance_counter
+            StereoRig._unnamed_instance_counter+=1
         else:
             self.id = _id
         
@@ -222,7 +159,7 @@ class StereoExtrinsics(object):
         @param root_element: the root element to build under
         '''
         if(as_sequence == False):
-            elem_name = "StereoExtrinsics"
+            elem_name = "StereoRig"
         else:
             elem_name = "_"
         stereo_calib_elem = etree.SubElement(root_element, elem_name,
@@ -248,10 +185,10 @@ class StereoExtrinsics(object):
     @staticmethod
     def from_xml(element):
         '''
-        Build a StereoExtrinsics object out of the given xml node
+        Build a StereoRig object out of the given xml node
         @type element: lxml.etree.SubElement
-        @param element: the element to construct an StereoExtrinsics object from
-        @return a new StereoExtrinsics object constructed from XML node with matrices in 
+        @param element: the element to construct an StereoRig object from
+        @return a new StereoRig object constructed from XML node with matrices in 
         OpenCV format
         '''
         cameras_elem = element.find("Cameras")
@@ -264,7 +201,7 @@ class StereoExtrinsics(object):
         fundamental_mat = xml.parse_xml_matrix(element.find("fundamental_mat"))
         error, time = _error_and_time_from_xml(element)
         _id = element.get("id")
-        return StereoExtrinsics(intrinsics, rotation, translation, essential_mat,
+        return StereoRig(intrinsics, rotation, translation, essential_mat,
                                      fundamental_mat, error, time)
         
         

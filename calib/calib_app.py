@@ -18,16 +18,18 @@
 '''
 
 from abc import ABCMeta
-from calib.data import Video
+from calib.video import Video
 import numpy as np
 import os
 import os.path as osp
 import re, datetime
+import cv2
 
 class CalibApplication(object):
     __metaclass__ = ABCMeta
     '''
-    classdocs
+    Base-level abstract Calibration Application class. Contains routines shared
+    by all calibration applications.
     '''
 
 
@@ -39,12 +41,7 @@ class CalibApplication(object):
         self.video = Video(args.folder,args.videos[0], 0)
         self.frame_dims = self.video.frame_dims
         
-        self.frame_numbers = []
-        if args.frame_numbers:
-            path = osp.join(args.folder, args.frame_numbers)
-            print("Loading frame numbers from \"{0:s}\"".format(path))
-            npzfile = np.load(path)
-            self.frame_numbers = set(npzfile["frame_numbers"])
+        self.frame_numbers = None
         
         self.full_frame_folder_path = osp.join(args.folder,args.filtered_image_folder)
         #if image folder (for captured frames) doesn't yet exist, create it
@@ -65,3 +62,4 @@ class CalibApplication(object):
             args.output = "calib{0:s}.xml".format(re.sub(r"-|:","",
                                                          str(datetime.datetime.now())[:-7])
                                                   .replace(" ","-"))
+            
