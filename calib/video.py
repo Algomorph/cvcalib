@@ -22,6 +22,22 @@ import os.path as osp
 import cv2
 from calib.data import CameraIntrinsics
 import numpy as np
+from enum import Enum
+
+#TODO: figure out how to deal with the filters
+class Filter(Enum):
+    flip_180 = 0
+    
+def string_list_to_filter_list(string_list):
+    filter_list = []
+    for item in string_list:
+        if not item in Filter._member_map_:
+            raise ValueError("'{:s}' does not refer to any existing filter. "+
+                             "Please, use one of the following: {:s}"
+                             .format(item, str(Filter._member_names_)))
+        else:
+            filter_list.append(Filter[item])
+    return filter_list
 
 class Pose(object):
     def __init__(self, T, T_inv = None, rvec = None, tvec = None):
@@ -46,12 +62,13 @@ class Video(object):
     '''
     Represents a video object, a simple convenience wrapper around OpenCV's video_capture
     '''
-    def __init__(self, directory, filename, index = 0, calib = None):
+    def __init__(self, directory, filename, index = 0, calib = None, filters = []):
         '''
         Build a camera from the specified file at the specified directory
         '''
         self.index = index
         self.cap = None
+        #self.filters = string_list_to_filter_list(filters)
         if filename[-3:] != "mp4":
             raise ValueError("Specified file does not have .mp4 extension.")
         self.path = osp.join(directory, filename)

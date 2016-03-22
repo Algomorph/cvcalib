@@ -308,7 +308,7 @@ class SyncedCalibApplication(CalibApplication):
             cio.load_corners(self.full_corners_path, self.videos)
             
             if(type(frame_numbers) == type(None)):
-                self.frame_numbers = list(self.videos[0].used_frames.keys)
+                self.frame_numbers = list(self.videos[0].usable_frames.keys())
             else:
                 #use legacy frame numbers
                 self.frame_numbers = frame_numbers
@@ -363,11 +363,11 @@ class SyncedCalibApplication(CalibApplication):
             self.videos[0].calib = calibration_result.intrinsics[0]
             self.videos[1].calib = calibration_result.intrinsics[1]
         else:
-            cutils.calibrate_wrapper(self.objpoints, self.video,
-                      self.args.use_rational_model,
-                      self.args.use_tangential_coeffs,
-                      self.args.max_iterations,
-                      self.initial_calibration)
+            calibration_result = cutils.calibrate_wrapper(self.objpoints, self.video,
+                                                          self.args.use_rational_model,
+                                                          self.args.use_tangential_coeffs,
+                                                          self.args.max_iterations,
+                                                          self.initial_calibration)
         if not self.args.skip_printing_output:
             print(calibration_result)
         if not self.args.skip_saving_output:

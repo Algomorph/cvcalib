@@ -152,8 +152,8 @@ class UnsyncedCalibApplication(CalibApplication):
         distance_data = []
         med_poses = []
         
+        #find distances between cameras at each frame, assuming a specific frame offset
         for offset in range(-max_offset,max_offset):
-            #distance between cameras:
             distance_set = []
             frame_numbers = []
             for i_frame_cam0 in range(frame_range_min,frame_range_max):
