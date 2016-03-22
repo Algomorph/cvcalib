@@ -178,7 +178,15 @@ class UnsyncedCalibApplication(CalibApplication):
             cv2.destroyAllWindows()
             
     def match_still_streaks(self, verbose = True):
-        pass
+        still_streaks=[]
+        for i_vid in range(len(self.videos)):
+            source_streak = self.videos[i_vid].still_streak
+            for j_vid in range(i_vid+1, len(self.videos)):
+                target_streak = self.videos[j_vid].still_streak
+            
+                
+        
+        
         
             
     def calibrate_time_variance(self, verbose = True):
