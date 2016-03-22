@@ -58,6 +58,9 @@ class CalibApplication(object):
         
         self.pixel_difference_factor = 1.0 / (self.board_dims[0] * self.board_dims[1] * 3 * 256.0)
         
+        #some vars set to default
+        self.criteria_subpix = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
+        
         if(args.output is None):
             args.output = "calib{0:s}.xml".format(re.sub(r"-|:","",
                                                          str(datetime.datetime.now())[:-7])

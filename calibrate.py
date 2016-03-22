@@ -70,11 +70,12 @@ class Setting(Enum):
     
     skip_printing_output = "skip_printing_output"
     skip_saving_output = "skip_saving_output"
-    
-    
+
     filtered_image_folder = "filtered_image_folder"
     save_images = "save_images"
     load_images = "load_images"
+    
+    unsynced = "unsynced"
 
 def main(argv=None):
     defaults = {
@@ -117,7 +118,9 @@ def main(argv=None):
         
         Setting.filtered_image_folder.name:"frames",
         Setting.save_images.name:False,
-        Setting.load_images.name:False
+        Setting.load_images.name:False,
+        
+        Setting.unsynced.name: False
         }
     
     #============== STORAGE/RETRIEVAL OF SETTINGS =================================================#
@@ -239,16 +242,15 @@ def main(argv=None):
                         required = False, default=defaults[Setting.use_fisheye_model.name])
     
     #============== INPUT/OUTPUT CALIBRATION FILES ================================================#
-    #TODO this should be a separate setting from output file
-    parser.add_argument("-cl", "--" + Setting.input_calibration.name, 
-                        help="an existing calibration output file to initialize calibration parameters (optional).", 
-                        type=str, required = False, default=defaults[Setting.input_calibration.name])
+    parser.add_argument("-cl", "--" + Setting.input_calibration.name, nargs='+', action=required_length(1, 2),
+                        help="an existing calibration file to initialize calibration parameters (optional).",
+                        required = False, default=defaults[Setting.input_calibration.name])
     parser.add_argument("-co", "--" + Setting.output.name, help="output file to store calibration results (relative to 'folder')", 
                         required = False, default=defaults[Setting.output.name])
     
     #============== MAXIMUM FRAME OFFSET ==========================================================#
     parser.add_argument("-mfo", "--" + Setting.max_frame_offset.name, 
-                    help="Used for unsynched calibration only: maximum delay, in frames, between videos",
+                    help="Used for unsynced calibration only: maximum delay, in frames, between videos",
                     required = False, default=defaults[Setting.max_frame_offset.name], type=int)
     
     #============== SKIP CERTAIN OPERATIONS =======================================================#
@@ -270,6 +272,17 @@ def main(argv=None):
                         action='store_true', required = False, 
                         default= defaults[Setting.load_images.name])
     
+    #============== UNSYNCED =====================================================================#
+    parser.add_argument("-u", "--" + Setting.unsynced.name, help="Use unsynced calibration mode. "+
+                        "In unsynced calibration mode, multiple videos don't have to be "+
+                        "synchronized at all. They just need to contain a long sequence of frames"+
+                        "with the calibration board taken during the same session with all the "+
+                        "cameras in static positions relative to each-other."+
+                        "However, you must supply reliable intrinsics for each camera (see " +
+                        Setting.input_calibration.name + " parameter). ",
+                        action='store_true',required = False, default=defaults[Setting.unsynced.name])
+    
+    
     parser.set_defaults(**defaults)
     args = parser.parse_args(remaining_argv)
 
@@ -281,9 +294,14 @@ def main(argv=None):
         dump(setting_dict, file_stream, Dumper=Dumper)
         file_stream.close()
     
-    app = SyncedCalibApplication(args)
-    app.gather_frame_data()
-    app.run_calibration()
+    if args.unsynced:
+        app = UnsyncedCalibApplication(args)
+        app.gather_frame_data()
+        print(app.calibrate_time_variance())
+    else:
+        app = SyncedCalibApplication(args)
+        app.gather_frame_data()
+        app.run_calibration()
     
 if __name__ == "__main__":
     sys.exit(main())

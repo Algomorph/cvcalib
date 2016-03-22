@@ -64,7 +64,7 @@ class SyncedCalibApplication(CalibApplication):
         
         #load existing calibration file if need-be
         if(args.input_calibration != None):
-            full_path = osp.join(args.folder, args.input_calibration)
+            full_path = osp.join(args.folder, args.input_calibration[0])
             self.initial_calibration = cio.load_opencv_calibration(full_path)
             if(len(args.videos) == 1 and type(self.initial_calibration) == StereoRig):
                 raise ValueError("Got only one video input, \'{0:s}\', but a stereo calibration "+
@@ -74,8 +74,7 @@ class SyncedCalibApplication(CalibApplication):
             self.initial_calibration = None
 
 
-        #some vars set to default
-        self.criteria_subpix = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
+        
     
     def __automatic_filter_stereo(self):
         l_frame = self.videos[0].frame

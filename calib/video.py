@@ -43,7 +43,7 @@ class Pose(object):
     def __init__(self, T, T_inv = None, rvec = None, tvec = None):
         self.T = T
         if(type(tvec) == type(None)):
-            tvec = T[0:3,3]
+            tvec = T[0:3,3].reshape(3,1)
         if(type(rvec) == type(None)):
             R = T[0:3,0:3]
             rvec = cv2.Rodrigues(R)[0]
@@ -56,6 +56,14 @@ class Pose(object):
         self.tvec = tvec
         self.rvec = rvec
         self.T_inv = T_inv
+    
+    @staticmethod
+    def invert_pose_matrix(T):
+        tvec = T[0:3,3].reshape(3,1)
+        R = T[0:3,0:3]
+        R_inv = R.T
+        tvec_inv = -R_inv.dot(tvec)
+        return np.vstack((np.append(R_inv,tvec_inv,1),[0,0,0,1]))
         
 
 class Video(object):
@@ -145,9 +153,9 @@ class Video(object):
         Find camera pose relative to object using current image point set, 
         object_points are treated as world coordinates
         '''
-        retval, rvec, tvec = cv2.sovlePnPRansac(object_points, video.current_image_points, #@UndefinedVariable
+        retval, rvec, tvec = cv2.solvePnPRansac(object_points, self.current_image_points,
                                                 self.calib.intrinsic_mat, self.calib.distortion_coeffs, 
-                                                flags=cv2.SOLVEPNP_ITERATIVE)
+                                                flags=cv2.SOLVEPNP_ITERATIVE)[0:3]
         if(retval):
             R = cv2.Rodrigues(rvec)[0]
             T = np.vstack((np.append(R,tvec,1),[0,0,0,1]))
