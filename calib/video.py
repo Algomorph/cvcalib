@@ -1,5 +1,5 @@
 '''
-/home/algomorph/Factory/calib_video_opencv/calib/video.py.
+/home/algomorph/Factory/calib_video_opencv/intrinsics/video.py.
 Created on Mar 21, 2016.
 @author: Gregory Kramida
 @licence: Apache v2
@@ -70,7 +70,7 @@ class Video(object):
     '''
     Represents a video object, a simple convenience wrapper around OpenCV's video_capture
     '''
-    def __init__(self, directory, filename, index = 0, calib = None, filters = []):
+    def __init__(self, directory, filename, index = 0, intrinsics = None, filters = []):
         '''
         Build a camera from the specified file at the specified directory
         '''
@@ -92,8 +92,10 @@ class Video(object):
                            int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
         self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
         self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        if(calib == None):
-            self.calib = CameraIntrinsics(self.frame_dims, index = index)
+        if(intrinsics == None):
+            self.intrinsics = CameraIntrinsics(self.frame_dims, index = index)
+        else:
+            self.intrinsics = intrinsics
         if(self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
             self.n_channels = 3
         else:
@@ -154,7 +156,7 @@ class Video(object):
         object_points are treated as world coordinates
         '''
         retval, rvec, tvec = cv2.solvePnPRansac(object_points, self.current_image_points,
-                                                self.calib.intrinsic_mat, self.calib.distortion_coeffs, 
+                                                self.intrinsics.intrinsic_mat, self.intrinsics.distortion_coeffs, 
                                                 flags=cv2.SOLVEPNP_ITERATIVE)[0:3]
         if(retval):
             R = cv2.Rodrigues(rvec)[0]

@@ -67,7 +67,7 @@ def calibrate_wrapper(objpoints, video,
                       initial_calibration = None):
     flags = 0
     if initial_calibration != None:
-        video.calib = initial_calibration
+        video.intrinsics = initial_calibration
         flags += cv2.CALIB_USE_INTRINSIC_GUESS
     criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, max_iters, 
                 2.2204460492503131e-16)
@@ -76,7 +76,7 @@ def calibrate_wrapper(objpoints, video,
     if use_rational_model:
         flags += cv2.CALIB_RATIONAL_MODEL
     calibration_result = calibrate(objpoints, video.imgpoints, flags, 
-                                    criteria, video.calib)
+                                    criteria, video.intrinsics)
     return calibration_result
 
 

@@ -20,6 +20,7 @@ import cv2#@UnresolvedImport
 from calib.data import StereoRig, CameraIntrinsics
 from calib.video import Video
 from calib.calib_app import CalibApplication
+from calib.utils import stereo_calibrate
 import calib.io as cio
 import os.path
 import time
@@ -88,12 +89,12 @@ class UnsyncedCalibApplication(CalibApplication):
         self.videos = []
         #load videos
         for video_filename in args.videos: 
-            self.videos.append(Video(args.folder, video_filename, ix_video))
+            self.videos.append(Video(args.folder, video_filename, ix_video, intrinsics=intrinsic_arr[ix_video]))
             ix_video +=1
             
-    def terminate_still_streak(self, streak, longest_streak, still_streaks, verbose = True):
-        #min_still_streak = self.args.max_frame_offset*2+1
-        min_still_streak = 30 
+    def __terminate_still_streak(self, streak, longest_streak, still_streaks, verbose = True):
+        min_still_streak = self.args.max_frame_offset*2+1
+        #min_still_streak = 30 
         
         if(len(streak) >= min_still_streak):
             still_streaks.append(streak)
@@ -152,13 +153,13 @@ class UnsyncedCalibApplication(CalibApplication):
                                 still_streak[1] = i_frame
                             else:
                                 still_streak, longest_still_streak =\
-                                self.terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
+                                self.__terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
                         else:
                             still_streak[0] = i_frame
                             
                 if(not add_corners):
                     still_streak, longest_still_streak =\
-                    self.terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
+                    self.__terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
                     
                 video.read_next_frame()
                 #fixed time interval reporting
@@ -169,84 +170,96 @@ class UnsyncedCalibApplication(CalibApplication):
             
             #in case the last frame was also added
             still_streak, longest_still_streak =\
-            self.terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
-            video.still_streaks = still_streaks    
+            self.__terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
+            video.still_streaks = [tuple(streak) for streak in still_streaks]    
             if verbose: 
                 print(" Done. Found {:d} usable frames.".format(len(video.usable_frames)))
             
         if self.args.manual_filter:
             cv2.destroyAllWindows()
             
+    def __aux_streak_within(self, source_streak, target_streak):
+        source_middle = source_streak[0] + (source_streak[1] - source_streak[0])//2 
+        return (((target_streak[0] <= source_streak[0] <= target_streak[1]) or
+                 (target_streak[0] <= source_streak[1] <= target_streak[1])) and
+                (target_streak[0] <= source_middle <= target_streak[1]))
+            
     def match_still_streaks(self, verbose = True):
-        still_streaks=[]
+        '''
+        look for streaks in target streak set that overlap at or within the bounds of each
+        streak within the source streak set
+        '''
+        if(verbose):
+            print("For each pair of videos, looking for timewise-overlapping"
+                  +"streaks of frames where calibration board is not moving.")
+        for vid in self.videos:
+            vid.still_streak_overlaps = {} 
+        #TODO: potenitally reduce to processing only one source video
         for i_vid in range(len(self.videos)):
-            source_streak = self.videos[i_vid].still_streak
+            source_streaks = self.videos[i_vid].still_streaks
             for j_vid in range(i_vid+1, len(self.videos)):
-                target_streak = self.videos[j_vid].still_streak
+                target_streaks = self.videos[j_vid].still_streaks
+                overlaps = []
+                for source_streak in source_streaks:
+                    found = False
+                    ix_target_streak = 0
+                    while(not found and ix_target_streak < len(target_streaks)):
+                        target_streak = target_streaks[ix_target_streak]
+                        if(self.__aux_streak_within(source_streak, target_streak)):
+                            overlaps.append((source_streak),(target_streak))
+                        ix_target_streak += 1
+                self.videos[i_vid].still_streak_overlaps[j_vid] = overlaps
+
+    def stereo_calibrate_stills(self, verbose = True):
+        source_vid = self.videos[0]
+        #cut at least this number of frames off the range bounds, because
+        #some frames in the beginning or end of the ranges will have some minor board motion
+        cutoff = 1
+        for j_vid in range(len(self.videos)):
+            target_vid = self.videos[j_vid]
+            overlaps = source_vid.still_streak_overlaps[j_vid]
             
+            imgpts_src = []
+            imgpts_tgt = []
+            for overlap in overlaps:
+                source_range = overlap[0]
+                target_range = overlap[1]
                 
-        
-        
-        
+                src_range_len = source_range[1]-source_range[0]
+                tgt_range_len = target_range[1]-target_range[0]
+                tgt_half_len = tgt_range_len//2
+                src_half_len = src_range_len//2
+                if(src_range_len > tgt_range_len):    
+                    increment = 0 if tgt_range_len % 2 == 0 else 1
+                    src_mid = source_range[0] + src_half_len
+                    source_range = (src_mid - tgt_half_len, src_mid + tgt_half_len + increment)
+                else:#target range is smaller than or equal to the source range
+                    increment = 0 if src_range_len % 2 == 0 else 1
+                    tgt_mid = target_range[0] + src_half_len
+                    target_range = (tgt_mid - src_half_len, src_mid + src_half_len + increment)
+                    
+                for ix_frame in range(source_range[0]+cutoff,source_range[1]-cutoff):
+                    imgpts_src.append(source_vid.imgpoints[source_vid.usable_frames[ix_frame]])
+                for ix_frame in range(target_range[0]+cutoff,target_range[1]-cutoff):
+                    imgpts_tgt.append(target_vid.imgpoints[target_vid.usable_frames[ix_frame]])
+                    
+            initial_calibration = StereoRig((source_vid.intrinsics, target_vid.intrinsics))
+
+            calibration_result = stereo_calibrate(imgpts_src, 
+                                                  imgpts_tgt, 
+                                                  self.objpoints, self.frame_dims, 
+                                                  self.args.use_fisheye_model, 
+                                                  self.args.use_rational_model, 
+                                                  self.args.use_tangential_coeffs,
+                                                  precalibrate_solo=False,
+                                                  stereo_only=False, 
+                                                  max_iters=self.args.max_iterations, 
+                                                  initial_calibration=initial_calibration)
             
-    def calibrate_time_variance(self, verbose = True):
-        #for only two cameras in this first version
-        #assume frames are contiguous for this version
-        max_offset = self.args.max_frame_offset
-        vid0 = self.videos[0]
-        vid1 = self.videos[1]
-        
-        frame_range_max = min((vid0.frame_count, vid1.frame_count-max_offset))
-        frame_range_min = max_offset
-        
-        if(vid1.frame_count < 2 * max_offset + 1):
-            raise ValueError("Not enough frames for offset finding")
-         
-        distance_data = []
-        med_poses = []
-        
-        #find distances between cameras at each frame, assuming a specific frame offset
-        for offset in range(-max_offset,max_offset):
-            if(verbose):
-                print("Examining possible offset of {:d} frames.".format(offset))
-            distance_set = []
-            frame_numbers = []
-            for i_frame_cam0 in range(frame_range_min,frame_range_max):
-                i_frame_cam1 = i_frame_cam0 + offset
-                if(i_frame_cam0 in vid0.usable_frames and i_frame_cam1 in vid1.usable_frames):
-                    t0 = vid0.poses[vid0.usable_frames[i_frame_cam0]].tvec
-                    t1 = vid1.poses[vid1.usable_frames[i_frame_cam1]].tvec
-                    distance_set.append(cv2.norm(t0, t1, cv2.NORM_L2))
-                    frame_numbers.append(i_frame_cam0)
-            distance_set = np.array(distance_set)
-            frame_numbers = np.array(frame_numbers)    
-            dist_var = distance_set.var()
-            dist_mean = distance_set.mean()
-            ixs = np.argsort(distance_set)
-            mid = int(len(distance_set)/2)
-            med_fn = frame_numbers[ixs][mid]
-            t0 = vid0.poses[vid0.usable_frames[med_fn]].tvec
-            t1 = vid1.poses[vid1.usable_frames[med_fn+offset]].tvec
-            med_poses.append((t0,t1)) 
-            distance_data.append([dist_var, len(distance_set), offset, dist_mean])
-            
-        distance_data = np.array(distance_data)
-        np.savez_compressed(os.path.join(self.args.folder, "distance_data.npz"), distance_data=distance_data)
-        med_poses = np.array(med_poses)
-        #sort by number of usable frames
-        ixs = np.argsort(distance_data[:,1])
-        distance_data = distance_data[ixs]
-        med_poses = med_poses[ixs]
-        #take top 90% by number of usable frames
-        start_from = int(0.1 * distance_data.shape[0])
-        distance_data = distance_data[start_from:,:]
-        med_poses = med_poses[start_from:]
-        #take one with smallest variance
-        ix = np.argmin(distance_data[:,0])
-        
-        return distance_data[ix][0], int(distance_data[ix][1]), int(distance_data[ix][2]), distance_data[ix][3], med_poses[ix]
     
     def calibrate_time_reprojection(self, verbose = True):
+        #TODO: this function is currently all old code borrowed from a function that doesn't really work
+        
         #for only two cameras in this first version
         #assume frames are contiguous for this version
         max_offset = self.args.max_frame_offset

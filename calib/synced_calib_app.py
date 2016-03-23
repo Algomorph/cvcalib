@@ -359,8 +359,8 @@ class SyncedCalibApplication(CalibApplication):
                 cv2.imwrite(path_r, r_im)
                 
             self.calibration = calibration_result
-            self.videos[0].calib = calibration_result.intrinsics[0]
-            self.videos[1].calib = calibration_result.intrinsics[1]
+            self.videos[0].intrinsics = calibration_result.intrinsics[0]
+            self.videos[1].intrinsics = calibration_result.intrinsics[1]
         else:
             calibration_result = cutils.calibrate_wrapper(self.objpoints, self.video,
                                                           self.args.use_rational_model,

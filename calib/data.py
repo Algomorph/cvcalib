@@ -19,8 +19,6 @@
 import calib.xml as xml
 from lxml import etree#@UnresolvedImport
 import numpy as np
-import os.path as osp
-import cv2#@UnresolvedImport
 
 
 def _resolution_from_xml(element):
@@ -128,7 +126,7 @@ class StereoRig(object):
                  fundamental_mat = np.eye(3,dtype=np.float64), error = -1.0, time = 0.0, _id = None):
         '''
         Constructor
-        @type intrinsics: tuple[calib.data.CameraIntrinsics]
+        @type intrinsics: tuple[intrinsics.data.CameraIntrinsics]
         @param intrinsics: tuple composed of two videos of the stereo camera pair.
         @type rotation: numpy.ndarray
         @param rotation: 3x3 rotation matrix from camera 0 to camera 1

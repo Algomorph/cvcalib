@@ -62,7 +62,7 @@ class CalibApplication(object):
         self.criteria_subpix = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
         
         if(args.output is None):
-            args.output = "calib{0:s}.xml".format(re.sub(r"-|:","",
+            args.output = "intrinsics{0:s}.xml".format(re.sub(r"-|:","",
                                                          str(datetime.datetime.now())[:-7])
                                                   .replace(" ","-"))
             

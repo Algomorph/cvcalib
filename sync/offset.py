@@ -64,6 +64,9 @@ def make_horiz_bins(data, fft_bin_size, overlap, box_height):
     if (len(sample_data) == fft_bin_size):  # if there are enough audio points left to create a full fft bin
         intensities = fourier(sample_data)  # intensities is list of fft results
         for i_intensity in range(len(intensities)):
+            #TODO: replace all int(a / b) with explicit integer division where required, 
+            #the "//" operator, to yeild a faster and (arguably) nicer code
+            
             #have to force int, since int by float division yields float in Python3
             #original causes mem overflow due to too many bins -Greg
             box_y = int(i_intensity/box_height)
