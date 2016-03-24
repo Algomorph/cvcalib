@@ -52,6 +52,7 @@ The default calibration board provided (checkerboard.pdf) is a small 9x6 checker
 #####Using the resulting calibration file
 
 The resulting calibration file can be read back in by adapting the same python code (check the XML module), but the format is also fully-compatible with OpenCV's XML input-output utilities, so you can read it from your C++ OpenCV applications or libraries. Here is some ugly C++ code that does that for your convenience:
+
 ```C++
 include <opencv2/core.hpp>
 
@@ -78,7 +79,6 @@ extrinsics_node["translation"] >> T;
 im_size = cv::Size(static_cast<int>(camera_0_node["resolution"]["width"]),
 			static_cast<int>(camera_0_node["resolution"]["height"]));
 ```
-
 
 
 ###Calibration Tips

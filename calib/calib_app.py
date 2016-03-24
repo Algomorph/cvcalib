@@ -18,7 +18,7 @@
 '''
 
 from abc import ABCMeta
-from calib.video import Video
+from calib.camera import Camera
 import numpy as np
 import os
 import os.path as osp
@@ -38,7 +38,7 @@ class CalibApplication(object):
         Base constructor
         '''
         self.args = args
-        self.video = Video(args.folder,args.videos[0], 0)
+        self.video = Camera(args.folder,args.videos[0], 0)
         self.frame_dims = self.video.frame_dims
         
         self.frame_numbers = None

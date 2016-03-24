@@ -18,7 +18,7 @@
 '''
 import cv2#@UnresolvedImport
 from calib.data import StereoRig, CameraIntrinsics
-from calib.video import Video
+from calib.camera import Camera
 from calib.calib_app import CalibApplication
 from calib.utils import stereo_calibrate
 import calib.io as cio
@@ -89,7 +89,7 @@ class UnsyncedCalibApplication(CalibApplication):
         self.videos = []
         #load videos
         for video_filename in args.videos: 
-            self.videos.append(Video(args.folder, video_filename, ix_video, intrinsics=intrinsic_arr[ix_video]))
+            self.videos.append(Camera(args.folder, video_filename, ix_video, intrinsics=intrinsic_arr[ix_video]))
             ix_video +=1
             
     def __terminate_still_streak(self, streak, longest_streak, still_streaks, verbose = True):

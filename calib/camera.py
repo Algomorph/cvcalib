@@ -66,7 +66,7 @@ class Pose(object):
         return np.vstack((np.append(R_inv,tvec_inv,1),[0,0,0,1]))
         
 
-class Video(object):
+class Camera(object):
     '''
     Represents a video object, a simple convenience wrapper around OpenCV's video_capture
     '''

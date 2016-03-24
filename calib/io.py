@@ -7,7 +7,7 @@ from lxml import etree#@UnresolvedImport
 import numpy as np
 import calib.geom as geom
 import calib.data as data
-from calib.video import Pose
+from calib.camera import Pose
 
 
 IMAGE_POINTS = "image_points"

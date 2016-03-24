@@ -23,7 +23,7 @@ import cv2#@UnresolvedImport
 import numpy as np
 import calib.utils as cutils
 from calib import io as cio
-from calib.video import Video
+from calib.camera import Camera
 from calib.data import StereoRig
 import sys
 import re
@@ -48,7 +48,7 @@ class SyncedCalibApplication(CalibApplication):
             
         #load videos
         if(len(args.videos) > 1):
-            self.videos = [self.video, Video(args.folder, args.videos[1], 1)]
+            self.videos = [self.video, Camera(args.folder, args.videos[1], 1)]
             self.__automatic_filter_basic = self.__automatic_filter_basic_stereo
             self.__automatic_filter = self.__automatic_filter_stereo
             if(len(args.preview_files) != len(args.videos)):

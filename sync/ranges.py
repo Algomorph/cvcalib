@@ -19,7 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-from calib.data import Video
+from calib.data import Camera
 import common.filter as cf
 
 def __sync_ranges(frame_durations, framerates, frame_ranges, frame_offsets):
@@ -54,7 +54,7 @@ def find_offset_range(video_filenames, folder, offset, cut_off_end = 2.0):
     ix_vid = 0
     
     for fn in video_filenames:
-        video = Video(folder,fn,ix_vid)
+        video = Camera(folder,fn,ix_vid)
         frame_durations.append(video.frame_count)
         source_videos.append(video)
         frame_offset = int(video.fps * offset[video.index])
@@ -91,7 +91,7 @@ def find_calibration_conversion_range(video_filenames, folder, offset, board_dim
     source_videos = []
     ix_vid = 0
     for fn in video_filenames:
-        video = Video(folder,fn,ix_vid)
+        video = Camera(folder,fn,ix_vid)
         source_videos.append(video)
         ix_vid+=1
         
