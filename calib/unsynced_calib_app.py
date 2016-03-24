@@ -256,6 +256,7 @@ class UnsyncedCalibApplication(CalibApplication):
                                                   max_iters=self.args.max_iterations, 
                                                   initial_calibration=initial_calibration)
             
+            
     
     def calibrate_time_reprojection(self, verbose = True):
         #TODO: this function is currently all old code borrowed from a function that doesn't really work

@@ -45,15 +45,15 @@ def _error_and_time_to_xml(element, error, time):
     time_element = etree.SubElement(element,"time")
     time_element.text = str(time)
 
-
-
 class CameraIntrinsics(object):
+    _unindexed_instance_counter = 0
+    _used_inexes = set()
     '''
     Represents videos of a camera, i.e. intrinsic matrix & distortion coefficients
     '''
     def __init__(self, resolution, intrinsic_mat = None, 
                  distortion_coeffs = np.zeros(8,np.float64), 
-                 error = -1.0, time = 0.0, index = 0):
+                 error = -1.0, time = 0.0, index = None):
         '''
         Constructor
         @type intrinsic_mat: numpy.ndarray
@@ -67,14 +67,21 @@ class CameraIntrinsics(object):
         @type  time: float
         @param time: calibration time in seconds
         '''
+        
+        if(index is None):
+            index = CameraIntrinsics._unindexed_instance_counter
+            CameraIntrinsics._unindexed_instance_counter+=1
+        if(index in CameraIntrinsics._used_inexes):
+            raise RuntimeError("{:s}: index {:d} was already used.".format(self.__class__.__name__, index))
         if(type(intrinsic_mat) == type(None)):
             intrinsic_mat = np.eye(3,dtype=np.float64)
+        self.index = index
         self.intrinsic_mat = intrinsic_mat
         self.distortion_coeffs = distortion_coeffs
         self.resolution = resolution
         self.error = error
         self.time = time
-        self.index = index
+        
     
     def to_xml(self, root_element, as_sequence = False):
         '''
@@ -83,7 +90,7 @@ class CameraIntrinsics(object):
         @param root_element: the root element to build under
         '''
         if(as_sequence == False):
-            elem_name = "CameraIntrinsics"
+            elem_name = self.__class__.__name__
         else:
             elem_name = "_"
         intrinsics_elem = etree.SubElement(root_element,elem_name,attrib={"index":str(self.index)})
@@ -93,10 +100,10 @@ class CameraIntrinsics(object):
         _error_and_time_to_xml(intrinsics_elem, self.error, self.time)
         
     def __str__(self):
-        return (("Camera Calibration Info, index: {0:d}\nResolution (h,w): {1:s}\n"+
-                 "Intrinsic matrix:\n{2:s}\nDistortion coefficients:\n{3:s}\n"+
-                 "Error: {4:f}\nTime: {5:f}")
-                .format(self.index,str(self.resolution),str(self.intrinsic_mat),
+        return (("{:s}, index: {:d}\nResolution (h,w): {:s}\n"+
+                 "Intrinsic matrix:\n{:s}\nDistortion coefficients:\n{:s}\n"+
+                 "Error: {:f}\nTime: {:f}")
+                .format(self.__class__.__name__,self.index,str(self.resolution),str(self.intrinsic_mat),
                         str(self.distortion_coeffs),self.error,self.time))
     
     @staticmethod
@@ -113,17 +120,93 @@ class CameraIntrinsics(object):
         index = int(element.get("index"))
         return CameraIntrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time, index)
     
-#TODO: StereoRig should contain video objects instead of intrinsics and be in its own separate module
+class CameraExtrinsics(object):
+    _unindexed_instance_counter = 0
+    _used_inexes = set()
+    def __init__(self, rotation = np.eye(3,dtype=np.float64), 
+                 translation = np.zeros(3,np.float64), essential_mat = np.eye(3,dtype=np.float64), 
+                 fundamental_mat = np.eye(3,dtype=np.float64), error = -1.0, time = 0.0, index = None):
+        '''
+        Constructor
+        @type rotation: numpy.ndarray
+        @param rotation: 3x3 rotation matrix from camera 0 to camera 1
+        @type translation: numpy.ndarray
+        @param translation: a 3x1 translation vector from camera 0 to camera 1
+        @type error: float
+        @param error: mean square distance error to object points after reprojection
+        @type  time: float
+        @param time: calibration time in seconds
+        '''
+        if(index is None):
+            index = CameraIntrinsics._unindexed_instance_counter
+            CameraIntrinsics._unindexed_instance_counter+=1
+        if(index in CameraExtrinsics._used_inexes):
+            raise RuntimeError("{:s}: index {:d} was already used.".format(self.__class__.__name__, index))
+        self.index = index
+        self.rotation = rotation
+        self.translation = translation
+        self.essential_mat = essential_mat
+        self.fundamental_mat = fundamental_mat
+        self.error = error
+        self.time = time
+        
+    def __str__(self):
+        return (("{:s}, index: {:s}\nRotation:\n{:s}\nTranslation:\n{:s}\nEssential Matrix:\n{:s}"
+                 +"\nFundamental Matrix:\n{:s}\nError: {:f}\nTime: {:f}")
+                .format(self.__class__.__name__, str(self.index),str(self.rotation),
+                        str(self.translation),str(self.essential_mat),
+                        str(self.fundamental_mat),self.error,self.time))
+        
+    def to_xml(self, root_element, as_sequence = False):
+        '''
+        Build an xml node representation of this object under the provided root xml element
+        @type root_element:  lxml.etree.SubElement
+        @param root_element: the root element to build under
+        '''
+        if(as_sequence == False):
+            elem_name = self.__class__.__name__
+        else:
+            elem_name = "_"
+            
+        extrinsics_elem = etree.SubElement(root_element, elem_name,
+                                             attrib={"index":str(self.index)})
+        
+        xml.make_opencv_matrix_xml_element(extrinsics_elem, self.rotation, "rotation")
+        xml.make_opencv_matrix_xml_element(extrinsics_elem, self.translation, "translation")
+        xml.make_opencv_matrix_xml_element(extrinsics_elem, self.essential_mat, "essential_mat")
+        xml.make_opencv_matrix_xml_element(extrinsics_elem, self.fundamental_mat,
+                                           "fundamental_mat")
+        _error_and_time_to_xml(extrinsics_elem, self.error, self.time)
+        
+    @staticmethod
+    def from_xml(element):
+        '''
+        Build a CameraExtrinsics object out of the provided XML node with matrices in 
+        OpenCV format
+        @type element: lxml.etree.SubElement
+        @param element: the element to construct an StereoRig object from
+        @return a new StereoRig object constructed from given XML node 
+        '''
+        rotation = xml.parse_xml_matrix(element.find("rotation"))
+        translation = xml.parse_xml_matrix(element.find("translation"))
+        essential_mat = xml.parse_xml_matrix(element.find("essential_mat"))
+        fundamental_mat = xml.parse_xml_matrix(element.find("fundamental_mat"))
+        error, time = _error_and_time_from_xml(element)
+        index = int(element.get("index"))
+        return CameraExtrinsics(rotation, translation, essential_mat,
+                                     fundamental_mat, error, time, index)
+    
+    
+#TODO: StereoRig should contain video objects & extrinsics object instead of intrinsics 
+#and be in its own separate module
 class StereoRig(object):
-    _unnamed_instance_counter = 0
+    
     '''
     Represents the results of a stereo calibration procedure, including all the information
     necessary to stereo-rectify images from the corresponding videos.
     Camera intrinsics <left,right> are always represented by indices <0,1> respectively
     '''
-    def __init__(self, intrinsics, rotation = np.eye(3,dtype=np.float64), 
-                 translation = np.zeros(3,np.float64), essential_mat = np.eye(3,dtype=np.float64), 
-                 fundamental_mat = np.eye(3,dtype=np.float64), error = -1.0, time = 0.0, _id = None):
+    def __init__(self, intrinsics, extrinsics=CameraExtrinsics(), _id = None):
         '''
         Constructor
         @type intrinsics: tuple[intrinsics.data.CameraIntrinsics]
@@ -138,15 +221,10 @@ class StereoRig(object):
         @param time: calibration time in seconds
         '''
         self.intrinsics = intrinsics
-        self.rotation = rotation
-        self.translation = translation
-        self.essential_mat = essential_mat
-        self.fundamental_mat = fundamental_mat
-        self.error = error
-        self.time = time
+        self.extrinsics = extrinsics
         if(_id is None):
-            self.id = StereoRig._unnamed_instance_counter
-            StereoRig._unnamed_instance_counter+=1
+            self.id = StereoRig._unindexed_instance_counter
+            StereoRig._unindexed_instance_counter+=1
         else:
             self.id = _id
         
@@ -157,28 +235,21 @@ class StereoRig(object):
         @param root_element: the root element to build under
         '''
         if(as_sequence == False):
-            elem_name = "StereoRig"
+            elem_name = self.__class__.__name__
         else:
             elem_name = "_"
-        stereo_calib_elem = etree.SubElement(root_element, elem_name,
+        stereo_rig_elem = etree.SubElement(root_element, elem_name,
                                              attrib={"id":str(self.id)})
-        cameras_elem = etree.SubElement(stereo_calib_elem, "Cameras")
+        cameras_elem = etree.SubElement(stereo_rig_elem, "Cameras")
         self.intrinsics[0].to_xml(cameras_elem, as_sequence = True)
         self.intrinsics[1].to_xml(cameras_elem, as_sequence = True)
-        xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.rotation, "rotation")
-        xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.translation, "translation")
-        xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.essential_mat, "essential_mat")
-        xml.make_opencv_matrix_xml_element(stereo_calib_elem, self.fundamental_mat,
-                                           "fundamental_mat")
-        _error_and_time_to_xml(stereo_calib_elem, self.error, self.time)
+        self.extrinsics.to_xml(stereo_rig_elem)
         
     def __str__(self):
-        return (("Stereo Calibration Info, id: {0:s}\n-----CAM0-----\n{1:s}\n-----CAM1-----\n{2:s}"+
-                 "\n--------------\nRotation:\n{3:s}\nTranslation:\n{4:s}\nEssential Matrix:\n{5:s}"
-                 +"\nFundamental Matrix:\n{6:s}\nError: {7:f}\nTime: {8:f}")
-                .format(str(self.id),str(self.intrinsics[0]),str(self.intrinsics[1]),str(self.rotation),
-                        str(self.translation),str(self.essential_mat),str(self.fundamental_mat),
-                        self.error,self.time))
+        return (("{:s}, id: {:s}\n-----CAM0-----\n{:s}\n-----CAM1-----\n{:s}"+
+                 "\n--------------\nExtrinsics:\n{:s}\n--------------")
+                .format(self.__class__.__name__, str(self.id),str(self.intrinsics[0]),
+                        str(self.intrinsics[1]),str(self.extrinsics)))
         
     @staticmethod
     def from_xml(element):
@@ -193,13 +264,9 @@ class StereoRig(object):
         intrinsics = []
         intrinsics.append(CameraIntrinsics.from_xml(cameras_elem[0]))
         intrinsics.append(CameraIntrinsics.from_xml(cameras_elem[1]))
-        rotation = xml.parse_xml_matrix(element.find("rotation"))
-        translation = xml.parse_xml_matrix(element.find("translation"))
-        essential_mat = xml.parse_xml_matrix(element.find("essential_mat"))
-        fundamental_mat = xml.parse_xml_matrix(element.find("fundamental_mat"))
-        error, time = _error_and_time_from_xml(element)
+        extrinsics = CameraExtrinsics.from_xml(element.find(CameraExtrinsics.__name__))
+       
         _id = element.get("id")
-        return StereoRig(intrinsics, rotation, translation, essential_mat,
-                                     fundamental_mat, error, time)
+        return StereoRig(intrinsics, extrinsics, _id)
         
         

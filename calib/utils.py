@@ -146,10 +146,11 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
             flags = flags | cv2.CALIB_FIX_INTRINSIC
         
         start = time.time()
-        result.error,\
+        result.extrinsics.error,\
         cam0.intrinsic_mat, cam0.distortion_coeffs,\
         cam1.intrinsic_mat, cam1.distortion_coeffs,\
-        result.rotation, result.translation, result.essential_mat, result.fundamental_mat\
+        result.extrinsics.rotation, result.extrinsics.translation,\
+        result.extrinsics.essential_mat, result.extrinsics.fundamental_mat\
         = cv2.stereoCalibrate(objpoints,limgpoints,rimgpoints, 
                               cameraMatrix1 = cam0.intrinsic_mat, 
                               distCoeffs1   = cam0.distortion_coeffs, 
@@ -159,5 +160,5 @@ def stereo_calibrate(limgpoints,rimgpoints,objpoints,
                               flags = flags,
                               criteria = criteria)
         end = time.time()
-        result.time = end - start 
+        result.extrinsics.time = end - start 
     return result

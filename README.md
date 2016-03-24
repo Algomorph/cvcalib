@@ -59,10 +59,11 @@ include <opencv2/core.hpp>
 // then, in some function:
 cv::FileStorage fs(path, cv::FileStorage::READ);
 
-cv::FileNode stereo_calib_node = fs["StereoCalibrationInfo"];
+cv::FileNode stereo_calib_node = fs["StereoRig"];
 cv::FileNode cameras_node = stereo_calib_node["Cameras"];
 cv::FileNode camera_0_node = cameras_node[0];
 cv::FileNode camera_1_node = cameras_node[1];
+cv::FileNode extrinsics_node = stereo_calib_node["CameraExtrinsics"] 
 
 cv::Mat K0, d0, K1, d1, R, T;
 cv::Size im_size;
@@ -71,8 +72,8 @@ camera_0_node["intrinsic_mat"] >> K0;
 camera_0_node["distortion_coeffs"] >> d0;
 camera_1_node["intrinsic_mat"] >> K1;
 camera_1_node["distortion_coeffs"] >> d1;
-stereo_calib_node["rotation"] >> R;
-stereo_calib_node["translation"] >> T;
+extrinsics_node["rotation"] >> R;
+extrinsics_node["translation"] >> T;
 
 im_size = cv::Size(static_cast<int>(camera_0_node["resolution"]["width"]),
 			static_cast<int>(camera_0_node["resolution"]["height"]));
