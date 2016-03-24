@@ -22,13 +22,17 @@ limitations under the License.
 import argparse
 from ast import literal_eval
 
+def string_arr(s):
+    if(type(s) == str):
+        return [s]
+    else:
+        return s
+    
+
 def required_length(nmin,nmax):
     class RequiredLength(argparse.Action):
-        def __call__(self, conf_parser, args, values, option_string=None):
-            if(type(values) == str):
-                values = [values]
+        def __call__(self, parser, args, values, option_string=None):
             if not nmin<=len(values)<=nmax:
-                print(values)
                 msg='argument "{f}" requires between {nmin} and {nmax} arguments'.format(
                     f=self.dest,nmin=nmin,nmax=nmax)
                 raise argparse.ArgumentTypeError(msg)

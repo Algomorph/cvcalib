@@ -45,6 +45,9 @@ def _error_and_time_to_xml(element, error, time):
     time_element = etree.SubElement(element,"time")
     time_element.text = str(time)
 
+#TODO: make Camera class XML-serializable, with filename as output
+#TODO: replace the index member of CameraIntrinsics & CameraExtrinsics with a calibration timestamp & all ensuing consequences
+#TODO: make CameraIntrinsics & CameraExtrinsics nested inner classes of Camera & rename them to Intrinsics & Extrinsics, respectively
 class CameraIntrinsics(object):
     _unindexed_instance_counter = 0
     _used_inexes = set()
@@ -75,6 +78,8 @@ class CameraIntrinsics(object):
             raise RuntimeError("{:s}: index {:d} was already used.".format(self.__class__.__name__, index))
         if(type(intrinsic_mat) == type(None)):
             intrinsic_mat = np.eye(3,dtype=np.float64)
+            intrinsic_mat[0,2] = resolution[1]/2
+            intrinsic_mat[1,2] = resolution[0]/2
         self.index = index
         self.intrinsic_mat = intrinsic_mat
         self.distortion_coeffs = distortion_coeffs

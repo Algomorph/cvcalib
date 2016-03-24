@@ -22,7 +22,7 @@ import sys
 import os.path as osp
 import argparse as ap
 from enum import Enum
-from common.args import required_length
+from common.args import required_length, string_arr
 from yaml import load, dump
 from calib.app_synced import ApplicationSynced
 from calib.app_unsynced import ApplicationUnsynced
@@ -37,7 +37,7 @@ class Setting(Enum):
     save_settings = "save_settings"
     
     folder = "folder"
-    videos = "videos"
+    cameras = "cameras"
     preview_files = "preview_files"
     preview = "preview"
     
@@ -83,7 +83,7 @@ def main(argv=None):
         Setting.save_settings.name:False,
         
         Setting.folder.name:"./",
-        Setting.videos.name: ["left.mp4","right.mp4"],
+        Setting.cameras.name: ["left.mp4","right.mp4"],
         Setting.preview_files.name:["left.png","right.png"],
         Setting.preview.name:False,
         
@@ -152,16 +152,18 @@ def main(argv=None):
     
     parser.add_argument("-f", "--" + Setting.folder.name, help="Path to root folder to work in", 
                         required=False, default=defaults[Setting.folder.name])
-    parser.add_argument("-v", "--" + Setting.videos.name,metavar="VIDEO", nargs='+', action=required_length(1, 2),
+    parser.add_argument("-v", "--" + Setting.cameras.name,metavar="VIDEO", nargs='+', 
+                        action=required_length(1, 10),type=string_arr,
                         help="input stereo video tuple (left, right) or a single video file,"+
                         " relative to the 'folder' argument", 
-                        required=False, default=defaults[Setting.videos.name])
+                        required=False, default=defaults[Setting.cameras.name])
     
     #============== CALIBRATION PREVIEW ===========================================================#
     #TODO: test
     parser.add_argument("-cpf", "--" + Setting.preview_files.name, nargs='+', help="input frames to test"+
                         " calibration result (currently only for stereo)", 
-                        required=False, default= ["left.png","right.png"], action=required_length(1, 2))
+                        required=False, default= ["left.png","right.png"], 
+                        action=required_length(1, 10), type=string_arr)
     parser.add_argument("-cp", "--" + Setting.preview.name, help="Test calibration result on left/right"+
                         " frame pair (currently only for stereo)", 
                         action = "store_true", required=False, default=defaults[Setting.preview.name])
@@ -242,7 +244,8 @@ def main(argv=None):
                         required = False, default=defaults[Setting.use_fisheye_model.name])
     
     #============== INPUT/OUTPUT CALIBRATION FILES ================================================#
-    parser.add_argument("-cl", "--" + Setting.input_calibration.name, nargs='+', action=required_length(1, 2),
+    parser.add_argument("-cl", "--" + Setting.input_calibration.name, nargs='+', action=required_length(1, 10),
+                        type=string_arr,
                         help="an existing calibration file to initialize calibration parameters (optional).",
                         required = False, default=defaults[Setting.input_calibration.name])
     parser.add_argument("-co", "--" + Setting.output.name, help="output file to store calibration results (relative to 'folder')", 
@@ -250,7 +253,7 @@ def main(argv=None):
     
     #============== MAXIMUM FRAME OFFSET ==========================================================#
     parser.add_argument("-mfo", "--" + Setting.max_frame_offset.name, 
-                    help="Used for unsynced calibration only: maximum delay, in frames, between videos",
+                    help="Used for unsynced calibration only: maximum delay, in frames, between cameras",
                     required = False, default=defaults[Setting.max_frame_offset.name], type=int)
     
     #============== SKIP CERTAIN OPERATIONS =======================================================#
@@ -274,7 +277,7 @@ def main(argv=None):
     
     #============== UNSYNCED =====================================================================#
     parser.add_argument("-u", "--" + Setting.unsynced.name, help="Use unsynced calibration mode. "+
-                        "In unsynced calibration mode, multiple videos don't have to be "+
+                        "In unsynced calibration mode, multiple cameras don't have to be "+
                         "synchronized at all. They just need to contain a long sequence of frames"+
                         "with the calibration board taken during the same session with all the "+
                         "cameras in static positions relative to each-other."+

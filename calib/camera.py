@@ -18,11 +18,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 '''
-import os.path as osp
+import os 
 import cv2
 from calib.data import CameraIntrinsics
 import numpy as np
 from enum import Enum
+from lxml import etree
 
 #TODO: figure out how to deal with the filters
 class Filter(Enum):
@@ -67,25 +68,32 @@ class Pose(object):
         
 
 class Camera(object):
+    _unindexed_instance_counter = 0
+    _used_inexes = set()
     '''
     Represents a video object, a simple convenience wrapper around OpenCV's video_capture
     '''
-    def __init__(self, directory, filename, index = 0, intrinsics = None, filters = []):
+    def __init__(self, video_path, index = None, intrinsics = None, filters = []):
         '''
         Build a camera from the specified file at the specified directory
         '''
+        if(index is None):
+            index = Camera._unindexed_instance_counter
+            CameraIntrinsics._unindexed_instance_counter+=1
+        if(index in Camera._used_inexes):
+            raise RuntimeError("{:s}: index {:d} was already used.".format(self.__class__.__name__, index))
         self.index = index
         self.cap = None
         #self.filters = string_list_to_filter_list(filters)
-        if filename[-3:] != "mp4":
+        if video_path[-3:] != "mp4":
             raise ValueError("Specified file does not have .mp4 extension.")
-        self.path = osp.join(directory, filename)
-        if not osp.isfile(self.path):
-            raise ValueError("No video file found at {0:s}".format(self.path))
-        self.name = filename[:-4]
-        self.cap = cv2.VideoCapture(self.path)
+        self.video_path = video_path
+        if not os.path.isfile(self.video_path):
+            raise ValueError("No video file found at {0:s}".format(self.video_path))
+        self.name = os.path.basename(video_path)[:-4]
+        self.cap = cv2.VideoCapture(self.video_path)
         if not self.cap.isOpened():
-            raise ValueError("Could not open specified .mp4 file ({0:s}) for capture!".format(self.path))
+            raise ValueError("Could not open specified .mp4 file ({0:s}) for capture!".format(self.video_path))
         #TODO: refactor to image_points
         self.imgpoints = []
         self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
@@ -106,6 +114,43 @@ class Camera(object):
         self.more_frames_remain = True
         self.poses = []
         self.usable_frames = {}
+        
+    def to_xml(self, root_element, as_sequence = False):
+        '''
+        Build an xml node representation of this object under the provided root xml element
+        @type root_element:  lxml.etree.SubElement
+        @param root_element: the root element to build under
+        '''
+        if(as_sequence == False):
+            elem_name = self.__class__.__name__
+        else:
+            elem_name = "_"
+        camera_elem = etree.SubElement(root_element,elem_name,attrib={"index":str(self.index)})
+        name_elem = etree.SubElement(camera_elem, "name")
+        name_elem.text = self.name
+        video_path_elem = etree.SubElement(camera_elem,"video_path")
+        video_path_elem.text = self.video_path
+        self.intrinsics.to_xml(camera_elem, False)
+    
+    def __str__(self, *args, **kwargs):
+        return (("{:s}, index: {:d}\nName (h,w): {:s}\n"+
+                  "Video path: {:s}\nIntrinsics:\n{:s}")
+                 .format(self.__class__.__name__,self.index,str(self.name),str(self.video_path),
+                         str(self.intrinsics)))
+    @staticmethod 
+    def from_xml(element):
+        '''
+        @type element: lxml.etree.SubElement
+        @param element: the element to construct an CameraIntrinsics object from
+        @return a new Camera object constructed from XML node with matrices in OpenCV format
+        '''
+        video_path = element.find("video_path").text
+        #name = element.find("name").text
+        index = int(element.get("index"))
+        intrinsics_elem = element.find(CameraIntrinsics.__name__)#@UndefinedVariable
+        intrinsics = CameraIntrinsics.from_xml(intrinsics_elem)
+        return Camera(video_path,index,intrinsics)
+        
         
     def clear_results(self):
         self.poses = []
@@ -173,7 +218,7 @@ class Camera(object):
         grey_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
         cv2.cornerSubPix(grey_frame, self.current_image_points, (11,11),(-1,-1),criteria_subpix)
         if(save_image):
-            fname = (osp.join(frame_folder_path,
+            fname = (os.path.join(frame_folder_path,
                            "{0:s}{1:04d}{2:s}".format(self.name,i_frame,".png")))
             cv2.imwrite(fname, self.frame)
         self.usable_frames[i_frame] = len(self.imgpoints)

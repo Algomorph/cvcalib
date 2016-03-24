@@ -67,8 +67,8 @@ def main(argv=None):
         right = cv2.imread(osp.join(args.folder,args.images[1]))
         
         sc = calibration_info
-        c0 = sc.intrinsics[0]
-        c1 = sc.intrinsics[1]
+        c0 = sc.cameras[0]
+        c1 = sc.cameras[1]
         
         if((left.shape[0],left.shape[1]) != c0.resolution):
             raise ValueError("Left image size does not correspond to resolution provided in the calibration file.")

@@ -5,8 +5,7 @@ Created on Jan 1, 2016
 '''
 from lxml import etree#@UnresolvedImport
 import numpy as np
-import calib.geom as geom
-import calib.data as data
+from calib import data, camera, geom, rig
 from calib.camera import Pose
 
 
@@ -53,15 +52,15 @@ def load_corners(path, videos, board_height = None,
         
     return objp, frame_numbers
 
-def save_corners(path, videos, object_point_set, verbose = True):
+def save_corners(path, cameras, object_point_set, verbose = True):
     if(verbose):
         print("Saving corners to {0:s}".format(path))
     file_dict = {}
-    for video in videos:
-        file_dict[IMAGE_POINTS+str(video.index)] = video.imgpoints
-        file_dict[FRAME_NUMBERS+str(video.index)] = list(video.usable_frames.keys())
-        if(len(video.poses)>0):
-            file_dict[POSES+str(video.index)] = np.array([pose.T for pose in video.poses])
+    for camera in cameras:
+        file_dict[IMAGE_POINTS+str(camera.index)] = camera.imgpoints
+        file_dict[FRAME_NUMBERS+str(camera.index)] = list(camera.usable_frames.keys())
+        if(len(camera.poses)>0):
+            file_dict[POSES+str(camera.index)] = np.array([pose.T for pose in camera.poses])
              
     file_dict[OBJECT_POINT_SET]=object_point_set
     np.savez_compressed(path,**file_dict) 
@@ -69,20 +68,20 @@ def save_corners(path, videos, object_point_set, verbose = True):
 def load_opencv_stereo_calibration(path):
     '''
     Load stereo calibration information from xml file
-    @type path: str
-    @param path: path to xml file
+    @type video_path: str
+    @param video_path: video_path to xml file
     @return stereo calibration: loaded from the given xml file
     @rtype calib.data.StereoRig
     '''
     tree = etree.parse(path)
     stereo_calib_elem = tree.find("StereoRig")
-    return data.StereoRig.from_xml(stereo_calib_elem)
+    return rig.StereoRig.from_xml(stereo_calib_elem)
 
 def load_opencv_single_calibration(path):
     '''
     Load single-camera calibration information from xml file
-    @type path: str
-    @param path: path to xml file
+    @type video_path: str
+    @param video_path: video_path to xml file
     @return calibration info: loaded from the given xml file
     @rtype calib.data.CameraIntrinsics
     '''
@@ -93,20 +92,22 @@ def load_opencv_single_calibration(path):
 def load_opencv_calibration(path):
     '''
     Load any kind (stereo or single) of calibration result from the file
-    @type path: str
-    @param path: path to xml file
+    @type video_path: str
+    @param video_path: video_path to xml file
     @return calibration info: loaded from the given xml file
     @rtype calib.data.CameraIntrinsics | calib.data.StereoRig
-    '''
+    ''' 
     tree = etree.parse(path)
-    calib_elem = tree.find("CameraIntrinsics")
-    if(calib_elem is not None):
-        calib_info = data.CameraIntrinsics.from_xml(calib_elem)
-    else:
-        stereo_calib_elem = tree.find("StereoRig")
-        if(stereo_calib_elem is None):
-            raise ValueError("Unexpected calibration format in file {0:s}".format(path))
-        calib_info = data.StereoRig.from_xml(stereo_calib_elem)
+    first_elem = tree.getroot().getchildren()[0]
+    class_name = first_elem.tag
+    modules = [data, camera, rig]
+    object_class = None
+    for module in modules:
+        if(hasattr(module, class_name)):
+            object_class = getattr(module, class_name)
+    if(object_class is None):
+        raise ValueError("Unexpected calibration format in file {0:s}".format(path))
+    calib_info = object_class.from_xml(first_elem)
     return calib_info
 
     

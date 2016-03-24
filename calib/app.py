@@ -38,8 +38,6 @@ class Application(object):
         Base constructor
         '''
         self.args = args
-        self.video = Camera(args.folder,args.videos[0], 0)
-        self.frame_dims = self.video.frame_dims
         
         self.frame_numbers = None
         
