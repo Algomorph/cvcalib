@@ -1,5 +1,5 @@
 '''
-/home/algomorph/Factory/calib_video_opencv/sync/convert.py.
+/home/algomorph/Factory/calib_video_opencv/audiosync/convert.py.
 Created on Feb 9, 2016.
 @author: Gregory Kramida
 @licence: Apache v2
@@ -19,8 +19,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-from calib.data import Camera
-import common.filter as cf
+from calib.camera import Camera
 
 def __sync_ranges(frame_durations, framerates, frame_ranges, frame_offsets):
     '''
@@ -116,7 +115,7 @@ def find_calibration_conversion_range(video_filenames, folder, offset, board_dim
         if(verbose):
             print("Seeking first frame of {0:s} usable for calibration...".format(video.name))
         while(cont_cap):
-            found_corners = cf.filter_basic_mono(video, board_dims) 
+            found_corners = video.approximate_corners(board_dims) 
             i_frame+=skip_interval
             video.scroll_to_frame(i_frame)
             if(i_frame > (video.frame_count-1)):
@@ -143,7 +142,7 @@ def find_calibration_conversion_range(video_filenames, folder, offset, board_dim
         if(verbose):
             print("Seeking last usable frame of {0:s}...".format(video.name))
         while(not found_corners):
-            found_corners = cf.filter_basic_mono(video,board_dims)
+            found_corners = video.approximate_corners(board_dims)
             i_frame-=skip_interval
             video.scroll_to_frame(i_frame)
             video.read_next_frame()

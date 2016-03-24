@@ -22,7 +22,7 @@ limitations under the License.
 #import calib.io as cio
 import argparse
 import sys
-from sync.app import SyncVideoApp
+from audiosync.app import SyncVideoApp
 from enum import Enum
 from common.args import boolarg
 

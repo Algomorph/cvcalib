@@ -18,9 +18,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 '''
 
-from sync.offset import find_time_offset
-from sync.ranges import find_calibration_conversion_range, find_offset_range
-from sync.recode import recode_ffmpeg
+from audiosync.offset import find_time_offset
+from audiosync.ranges import find_calibration_conversion_range, find_offset_range
+from audiosync.recode import recode_ffmpeg
 
 class SyncVideoApp(object):
     '''
