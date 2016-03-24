@@ -17,7 +17,8 @@
  limitations under the License.
 '''
 import cv2#@UnresolvedImport
-from calib.data import StereoRig, CameraIntrinsics
+from calib.data import CameraIntrinsics
+from calib.rig import StereoRig
 from calib.camera import Camera
 from calib.calib_app import CalibApplication
 from calib.utils import stereo_calibrate

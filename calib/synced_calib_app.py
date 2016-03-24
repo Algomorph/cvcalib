@@ -24,7 +24,7 @@ import numpy as np
 import calib.utils as cutils
 from calib import io as cio
 from calib.camera import Camera
-from calib.data import StereoRig
+from calib.rig import StereoRig
 import sys
 import re
 import common.filter as cf 
