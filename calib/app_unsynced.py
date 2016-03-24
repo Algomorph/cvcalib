@@ -20,7 +20,7 @@ import cv2#@UnresolvedImport
 from calib.data import CameraIntrinsics
 from calib.rig import StereoRig
 from calib.camera import Camera
-from calib.calib_app import CalibApplication
+from calib.app import Application
 from calib.utils import stereo_calibrate
 import calib.io as cio
 import os.path
@@ -34,7 +34,7 @@ class Mode(Enum):
     multiview_stereo = 1
     
 
-class UnsyncedCalibApplication(CalibApplication):
+class ApplicationUnsynced(Application):
     '''
     UnsynchedCalibApplication
     '''
@@ -43,7 +43,7 @@ class UnsyncedCalibApplication(CalibApplication):
         '''
         Constructor
         '''
-        CalibApplication.__init__(self, args)
+        Application.__init__(self, args)
         
         self.frame_numbers = {}
         

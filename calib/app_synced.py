@@ -28,16 +28,16 @@ from calib.rig import StereoRig
 import sys
 import re
 import common.filter as cf 
-from calib.calib_app import CalibApplication
+from calib.app import Application
 
 
-class SyncedCalibApplication(CalibApplication):
+class ApplicationSynced(Application):
     '''
     Application class for calibration of single cameras or genlocked stereo cameras
     '''
     min_frames_to_calibrate = 4
     def __init__(self,args):
-        CalibApplication.__init__(self, args)
+        Application.__init__(self, args)
         
         self.frame_numbers = []
         if args.frame_numbers:
@@ -331,7 +331,7 @@ class SyncedCalibApplication(CalibApplication):
         self.usable_frame_count = usable_frame_ct
                
     def run_calibration(self):
-        min_frames = SyncedCalibApplication.min_frames_to_calibrate
+        min_frames = ApplicationSynced.min_frames_to_calibrate
         if self.usable_frame_count < min_frames:
             print("Not enough usable frames to calibrate."+
                   " Need at least {0:d}, got {1:d}".format(min_frames,self.usable_frame_count))

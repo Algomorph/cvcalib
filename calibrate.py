@@ -24,8 +24,8 @@ import argparse as ap
 from enum import Enum
 from common.args import required_length
 from yaml import load, dump
-from calib.synced_calib_app import SyncedCalibApplication
-from calib.unsynced_calib_app import UnsyncedCalibApplication
+from calib.app_synced import ApplicationSynced
+from calib.app_unsynced import ApplicationUnsynced
 
 try:
     from yaml import CLoader as Loader, CDumper as Dumper
@@ -295,11 +295,11 @@ def main(argv=None):
         file_stream.close()
     
     if args.unsynced:
-        app = UnsyncedCalibApplication(args)
+        app = ApplicationUnsynced(args)
         app.gather_frame_data()
         print(app.calibrate_time_variance())
     else:
-        app = SyncedCalibApplication(args)
+        app = ApplicationSynced(args)
         app.gather_frame_data()
         app.run_calibration()
     

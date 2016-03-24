@@ -25,7 +25,7 @@ import os.path as osp
 import re, datetime
 import cv2
 
-class CalibApplication(object):
+class Application(object):
     __metaclass__ = ABCMeta
     '''
     Base-level abstract Calibration Application class. Contains routines shared
