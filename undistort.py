@@ -1,11 +1,13 @@
 #!/usr/bin/python3
 import calib.io as cio
-import calib.data as cdata
 import argparse
 import sys
 import os.path as osp
 import cv2#@UnresolvedImport
 from common.args import required_length
+from calib.rig import StereoRig
+from calib.data import CameraIntrinsics
+from calib.camera import Camera
 
 
 
@@ -38,26 +40,7 @@ def main(argv=None):
     if(args.verbose):
         print(calibration_info)
     
-    if(type(calibration_info) == cdata.CameraIntrinsics):
-        if(len(args.images) > 1):
-            print("Warning: provided a single-camera calibration but more than one input image."+
-                  " Using only the first one.")
-        
-        img = cv2.imread(osp.join(args.folder,args.images[0]))
-        
-        if((img.shape[0],img.shape[1]) != calibration_info.resolution):
-            raise ValueError("Image size does not correspond to resolution provided in the calibration file.")
-        
-        cf = args.canvas_size_factor
-        
-        map_x, map_y = cv2.initUndistortRectifyMap(calibration_info.intrinsic_mat,
-                                                   calibration_info.distortion_coeffs,
-                                                   None, None, 
-                                                   (int(img.shape[1]*cf),int(img.shape[0]*cf)), 
-                                                   cv2.CV_32FC1)
-        out = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR)
-        cv2.imwrite(osp.join(args.folder,args.output[0]), out)
-    else:
+    if(type(calibration_info) == StereoRig):
         if(len(args.images) < 2):
             raise ValueError("Got a stereo calibration result but less than two input images. Aborting.")
         if(len(args.output) < 2):
@@ -95,6 +78,27 @@ def main(argv=None):
         rect_right = cv2.remap(right, map2x, map2y, cv2.INTER_LINEAR)
         cv2.imwrite(osp.join(args.folder,args.output[0]), rect_left)
         cv2.imwrite(osp.join(args.folder,args.output[1]), rect_right)
+    else:
+        if(len(args.images) > 1):
+            print("Warning: provided a single-camera calibration but more than one input image."+
+                  " Using only the first one.")
+        
+        img = cv2.imread(osp.join(args.folder,args.images[0]))
+        if(type(calibration_info) == Camera):
+            calibration_info = calibration_info.intrinsics
+        if((img.shape[0],img.shape[1]) != calibration_info.resolution):
+            raise ValueError("Image size does not correspond to resolution provided in the calibration file.")
+        
+        cf = args.canvas_size_factor
+        
+        map_x, map_y = cv2.initUndistortRectifyMap(calibration_info.intrinsic_mat,
+                                                   calibration_info.distortion_coeffs,
+                                                   None, None, 
+                                                   (int(img.shape[1]*cf),int(img.shape[0]*cf)), 
+                                                   cv2.CV_32FC1)
+        out = cv2.remap(img, map_x, map_y, cv2.INTER_LINEAR)
+        cv2.imwrite(osp.join(args.folder,args.output[0]), out)
+        
     
 
 if __name__ == "__main__":

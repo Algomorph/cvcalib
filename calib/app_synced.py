@@ -58,7 +58,7 @@ class ApplicationSynced(Application):
                     raise TypeError("(:s) Unsupported calibration type: {:s}"
                                     .format(ApplicationSynced.__name__,str(type(initial_calibration))))
             else:
-                self.camera = Camera(os.path.join(args.folder,args.videos[0],0))
+                self.camera = Camera(os.path.join(args.folder,args.videos[0]),0)
             self.cameras = [self.camera]
             self.__automatic_filter_basic = self.__automatic_filter_basic_mono
             self.__automatic_filter = self.__automatic_filter_mono
@@ -124,6 +124,7 @@ class ApplicationSynced(Application):
             if(self.cameras[0].frame_dims != self.cameras[1].frame_dims):
                 raise ValueError("The cameras must have the same resolution.")
 
+    #TODO: --> StereoRig class
     def __automatic_filter_stereo(self):
         l_frame = self.cameras[0].frame
         lframe_prev = self.cameras[0].previous_frame
@@ -151,6 +152,7 @@ class ApplicationSynced(Application):
         
         return True
     
+    #TODO: automatic filter mono --> Camera class
     def __automatic_filter_mono(self):
         frame = self.camera.frame
         frame_prev = self.camera.previous_frame
@@ -171,10 +173,11 @@ class ApplicationSynced(Application):
         
         return True
         
-    
+    #TODO: automatic filter stereo --> StereoRig class
     def __automatic_filter_basic_stereo(self):
         return cf.filter_basic_stereo(self.cameras, self.board_dims)
     
+    #TODO: --> Camera class
     def __automatic_filter_basic_mono(self):
         return self.camera.approximate_corners(self.board_dims)
 

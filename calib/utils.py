@@ -105,6 +105,7 @@ def stereo_calibrate(rig,
     
     if(stereo_only):
         flags = flags | cv2.CALIB_FIX_INTRINSIC
+        precalibrate_solo = False
     
     if use_fisheye:
         d0 = intrinsics0.distortion_coeffs

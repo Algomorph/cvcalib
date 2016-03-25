@@ -20,7 +20,7 @@ limitations under the License.
 '''
 import os 
 import cv2
-from calib.data import CameraIntrinsics
+from calib.data import CameraIntrinsics, CameraExtrinsics
 import numpy as np
 from enum import Enum
 from lxml import etree
@@ -73,7 +73,7 @@ class Camera(object):
     '''
     Represents a video object, a simple convenience wrapper around OpenCV's video_capture
     '''
-    def __init__(self, video_path, index = None, intrinsics = None, filters = []):
+    def __init__(self, video_path, index = None, intrinsics = None, extrinsics = None, filters = []):
         '''
         Build a camera from the specified file at the specified directory
         '''
@@ -104,6 +104,11 @@ class Camera(object):
             self.intrinsics = CameraIntrinsics(self.frame_dims, index = index)
         else:
             self.intrinsics = intrinsics
+        if(extrinsics == None):
+            self.extrinsics = CameraExtrinsics()
+        else:
+            self.extrinsics = extrinsics
+        
         if(self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
             self.n_channels = 3
         else:
