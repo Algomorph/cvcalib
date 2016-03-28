@@ -16,7 +16,7 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 '''
-import cv2#@UnresolvedImport
+import cv2
 from calib.data import CameraIntrinsics
 from calib.rig import StereoRig
 from calib.camera import Camera
@@ -26,7 +26,8 @@ import calib.io as cio
 import os.path
 import time
 import numpy as np
-from enum import Enum
+import sys
+import math
 
 
  
@@ -48,7 +49,7 @@ class ApplicationUnsynced(Application):
         
         if(args.input_calibration == None or len(args.input_calibration) == 0):
             raise ValueError("Unsynched calibration requires input calibration parameters for all "+
-                             "cameras used to take the cameras.")
+                             "cameras used to take the videos.")
         
         #load calibration files
         initial_calibration = []
@@ -59,74 +60,136 @@ class ApplicationUnsynced(Application):
         if(type(initial_calibration[0]) == StereoRig):
             for calib_info in initial_calibration:
                 if (type(calib_info) != StereoRig):
-                    raise TypeError("All calibration files should be of the same type. Expecting: " 
+                    #TODO combine with the other thing... remove type restriction, just keep track of the total number
+                    raise TypeError("For stereo, all calibration files should contain stereo information. Expecting: " 
                                     + str(StereoRig) + ". Got: " + str(type(calib_info)))
                 intrinsic_arr += calib_info.intrinsics#aggregate intrinsics into a single array
-            if(len(args.cameras) % 2 != 0):
+            if(len(args.videos) % 2 != 0):
                 raise ValueError("Provided stereo input calibration files: expecting an even "+
-                                 "number of videos. Got: {:d}".format(len(args.cameras)))
-            if(len(initial_calibration) != len(args.cameras)//2):
-                raise ValueError("Number of stereo calibration files is not half the number of cameras.")
+                                 "number of videos. Got: {:d}".format(len(args.videos)))
+            if(len(initial_calibration) != len(args.videos)//2):
+                raise ValueError("Number of stereo calibration files is not half the number of videos.")
         else:
-            if(len(initial_calibration) != len(args.cameras)):
-                raise ValueError("Number of intrinsics files is does not equal the number of cameras.")
-            if(type(initial_calibration[0]) == Camera):
-                for calib_info in initial_calibration:
-                    if (type(calib_info) != Camera):
-                        raise TypeError("All calibration files should be of the same type. Expecting: " 
-                                        + str(Camera) + ". Got: " + str(type(calib_info)))
-                    intrinsic_arr.append(calib_info.intrinsics)
-                
-            elif(type(initial_calibration[0]) == CameraIntrinsics):
-                for calib_info in initial_calibration:
-                    if (type(calib_info) != CameraIntrinsics):
-                        raise TypeError("All calibration files should be of the same type. Expecting: " 
-                                        + str(CameraIntrinsics) + ". Got: " + str(type(calib_info)))
-                
-                intrinsic_arr = initial_calibration
+            if(len(initial_calibration) != len(args.videos)):
+                raise ValueError("Number of intrinsics files is does not equal the number of videos.")
+            for calib_info in initial_calibration:
+                    if (type(calib_info) == Camera):
+                        intrinsic_arr.append(calib_info.intrinsics)
+                    elif(type(calib_info) == CameraIntrinsics):
+                        intrinsic_arr.append(calib_info)
+                    else:
+                        raise RuntimeError("Unsupported calibration file format.")
         
         if args.frame_numbers:
             path = os.path.join(args.folder, args.frame_numbers)
             print("Loading frame numbers from \"{0:s}\"".format(path))
             npzfile = np.load(path)
-            for video_filename in args.cameras:
+            for video_filename in args.videos:
                 self.frame_numbers.append(set(npzfile["video_filename"]))
         
         ix_video = 0
         self.cameras = []
-        #load cameras
-        for video_filename in args.cameras: 
-            self.cameras.append(Camera(args.folder, video_filename, ix_video, intrinsics=intrinsic_arr[ix_video]))
+        #load videos
+        for video_filename in args.videos: 
+            self.cameras.append(Camera(os.path.join(args.folder, video_filename), 
+                                       index=ix_video, 
+                                       intrinsics=intrinsic_arr[ix_video]))
             ix_video +=1
         if len(self.cameras) < 2:
-            raise ValueError("Expecting at least two videos & input calibration parameters for the corresponding cameras")
-        
-    def find_calibration_intervals(self):
-        for camera in self.cameras:
-            sample_interval_seconds = 64
-            streaks = []
-            while len(streaks) == 0 and sample_interval_seconds > 4:
-                sample_interval_frames = camera.frame_rate * sample_interval_seconds
-                streak = [0,0]
-                for ix_frame in range(0,camera.frame_count, sample_interval_frames):
-                    camera.scroll_to_frame(ix_frame)
-                    if(camera.approximate_corners(self.board_dims)):
-                        if(len(streak) == 0):
-                            streak[0] = ix_frame
-                        else:
-                            streak[1] = ix_frame
-                    else:
-                        if(len(streak) > 0):
-                            streaks.append(streak)
-                        streak = [0,0]
-                sample_interval_seconds //=2    
-            #find longest streak
-            streaks = np.array(streaks)
-            streak_length = streaks[:,1] - streaks[:,0]
-            longest_streak = streaks[np.argmax(streak_length)]
-            while(longest_streak)
-                
+            raise ValueError("Expecting at least two videos & input calibration parameters for the corresponding videos")
+    
+    def __browse_around_frame(self,camera,around_frame, frame_range = 64, interval = 16, verbose=True):
+        for i_frame in range(max(around_frame - frame_range,0),
+                             min(around_frame + frame_range,camera.frame_count), interval):
+            camera.read_at_pos(i_frame)
+            if(verbose):
+                print('.',end="",flush=True)
+            if(camera.approximate_corners(self.board_dims)):
+                return i_frame
+        return -1
             
+    
+    def __seek_calib_limit_aux2(self, camera, frame_range, verbose = True):
+        frame_range_signed_length = frame_range[1] - frame_range[0] 
+        sample_interval_frames = frame_range_signed_length // 2
+        while sample_interval_frames != 0:
+            miss_count = 0
+            if(verbose):
+                print("\nSamplng every {:d} frames within {:s}".format(sample_interval_frames, str(frame_range)))
+            for i_frame in range(frame_range[0],frame_range[1], sample_interval_frames):
+                camera.read_at_pos(i_frame)
+                if(verbose):
+                    print('.',end="",flush=True)
+                if(camera.approximate_corners(self.board_dims)):
+                    frame_range[0] = i_frame
+                    miss_count = 0
+                else:
+                    if(sample_interval_frames > 64):
+                        retval = self.__browse_around_frame(camera,i_frame, frame_range=64, 
+                                                               verbose=verbose)
+                        if(retval == -1):
+                            miss_count+=1
+                        else:
+                            frame_range[0] = retval
+                            miss_count = 0
+                    else:
+                        miss_count+=1
+                    if(miss_count > 2):
+                        #too many frames w/o calibration board, go to finer scan
+                        frame_range[1] = i_frame
+                        break
+            sample_interval_frames = round(sample_interval_frames/2)
+        return frame_range[0]
+    
+    def find_calibration_intervals(self, verbose = True):
+        for camera in self.cameras:
+            calibration_start = 0
+            calibration_end = sys.maxsize
+            
+            if(self.args.time_range == None):
+                rough_seek_range = (0,camera.frame_count)
+            else:
+                rough_seek_range = (round(max(0,camera.fps*self.args.time_range[0])), 
+                                    round(min(camera.fps*self.args.time_range[1],camera.frame_count)))
+            
+            if(verbose):
+                print("Performing initial rough scan of {0:s} for calibration board...".format(camera.name))
+            found = False
+            #find approximate start and end of calibration
+            sample_interval_frames = camera.frame_count // 2
+            
+            while not found and sample_interval_frames > 4:
+                if(verbose):
+                    print("\nSamplng every {:d} frames".format(sample_interval_frames))
+                for i_frame in range(rough_seek_range[0],
+                                     rough_seek_range[1], 
+                                     sample_interval_frames):
+                    camera.read_at_pos(i_frame)
+                    if(verbose):
+                        print('.',end="",flush=True)
+                    if(camera.approximate_corners(self.board_dims)):
+                        calibration_end = calibration_start = i_frame
+                        print("Hit at {:d}!".format(i_frame))
+                        found = True
+                        break
+                sample_interval_frames //= 2
+                        
+            ###find exact start & end of streak
+            i_frame = calibration_start
+            if(verbose):
+                print("Seeking first calibration frame of {0:s}...".format(camera.name))
+            #traverse backward from inexact start
+            calibration_start = self.__seek_calib_limit_aux2(camera, [calibration_start,rough_seek_range[0]], verbose)
+            if(verbose):
+                print("Seeking last calibration frame of {0:s}...".format(camera.name))
+            #traverse forward from inexact end
+            calibration_end = self.__seek_calib_limit_aux2(camera, [calibration_end,rough_seek_range[1]],
+                                                           verbose)
+            camera.calibration_range = (calibration_start, calibration_end)
+            if(verbose):
+                print("Found calibration frame range for camera {:s} to be within {:s}"
+                      .format(camera.name, str(camera.calibration_range)))
+
     def __terminate_still_streak(self, streak, longest_streak, still_streaks, verbose = True):
         min_still_streak = self.args.max_frame_offset*2+1
         #min_still_streak = 30 
@@ -225,15 +288,15 @@ class ApplicationUnsynced(Application):
         streak within the source streak set
         '''
         if(verbose):
-            print("For each pair of cameras, looking for timewise-overlapping"
+            print("For each pair of videos, looking for timewise-overlapping"
                   +"streaks of frames where calibration board is not moving.")
-        for vid in self.cameras:
+        for vid in self.videos:
             vid.still_streak_overlaps = {} 
         #TODO: potenitally reduce to processing only one source video
-        for i_vid in range(len(self.cameras)):
-            source_streaks = self.cameras[i_vid].still_streaks
-            for j_vid in range(i_vid+1, len(self.cameras)):
-                target_streaks = self.cameras[j_vid].still_streaks
+        for i_vid in range(len(self.videos)):
+            source_streaks = self.videos[i_vid].still_streaks
+            for j_vid in range(i_vid+1, len(self.videos)):
+                target_streaks = self.videos[j_vid].still_streaks
                 overlaps = []
                 for source_streak in source_streaks:
                     found = False
@@ -243,16 +306,16 @@ class ApplicationUnsynced(Application):
                         if(self.__aux_streak_within(source_streak, target_streak)):
                             overlaps.append((source_streak),(target_streak))
                         ix_target_streak += 1
-                self.cameras[i_vid].still_streak_overlaps[j_vid] = overlaps
+                self.videos[i_vid].still_streak_overlaps[j_vid] = overlaps
 
     def stereo_calibrate_stills(self, verbose = True):
-        source_cam = self.cameras[0]
+        source_cam = self.videos[0]
         
         #cut at least this number of frames off the range bounds, because
         #some frames in the beginning or end of the ranges will have some minor board motion
         cutoff = 1
-        for j_vid in range(len(self.cameras)):
-            target_cam = self.cameras[j_vid]
+        for j_vid in range(len(self.videos)):
+            target_cam = self.videos[j_vid]
             overlaps = source_cam.still_streak_overlaps[j_vid]
             
             imgpts_src = []
@@ -296,11 +359,11 @@ class ApplicationUnsynced(Application):
     def calibrate_time_reprojection(self, verbose = True):
         #TODO: this function is currently all old code borrowed from a function that doesn't really work
         
-        #for only two cameras in this first version
+        #for only two videos in this first version
         #assume frames are contiguous for this version
         max_offset = self.args.max_frame_offset
-        vid0 = self.cameras[0]
-        vid1 = self.cameras[1]
+        vid0 = self.videos[0]
+        vid1 = self.videos[1]
         
         frame_range_max = min((vid0.frame_count, vid1.frame_count-max_offset))
         frame_range_min = max_offset
@@ -311,7 +374,7 @@ class ApplicationUnsynced(Application):
         distance_data = []
         med_poses = []
         
-        #find distances between cameras at each frame, assuming a specific frame offset
+        #find distances between videos at each frame, assuming a specific frame offset
         for offset in range(-max_offset,max_offset):
             if(verbose):
                 print("Examining possible offset of {:d} frames.".format(offset))
@@ -356,12 +419,12 @@ class ApplicationUnsynced(Application):
         
     def gather_frame_data(self, verbose = True):
         if(self.args.load_corners):
-            self.board_object_corner_set = cio.load_corners(self.full_corners_path, self.cameras, 
+            self.board_object_corner_set = cio.load_corners(self.full_corners_path, self.videos, 
                                                             verbose=verbose)[0]
         else:
             self.run_capture(verbose)
             if(self.args.save_corners):
-                cio.save_corners(self.full_corners_path, self.cameras, self.board_object_corner_set)
+                cio.save_corners(self.full_corners_path, self.videos, self.board_object_corner_set)
                     
              
         

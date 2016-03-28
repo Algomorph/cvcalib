@@ -37,7 +37,7 @@ class Setting(Enum):
     save_settings = "save_settings"
     
     folder = "folder"
-    cameras = "cameras"
+    videos = "cameras"
     preview_files = "preview_files"
     preview = "preview"
     
@@ -50,6 +50,7 @@ class Setting(Enum):
     manual_filter = "manual_filter"
     frame_count_target = "frame_count_target"
     frame_numbers = "frame_numbers"
+    time_range = "time_range"
     
     corner_positions_file = "corners_file"
     save_corner_positions = "save_corner_positions"
@@ -83,7 +84,7 @@ def main(argv=None):
         Setting.save_settings.name:False,
         
         Setting.folder.name:"./",
-        Setting.cameras.name: ["left.mp4","right.mp4"],
+        Setting.videos.name: ["left.mp4","right.mp4"],
         Setting.preview_files.name:["left.png","right.png"],
         Setting.preview.name:False,
         
@@ -96,6 +97,7 @@ def main(argv=None):
         Setting.manual_filter.name:False,
         Setting.frame_count_target.name:-1,
         Setting.frame_numbers.name:None,
+        Setting.time_range.name:None,
         
         Setting.corner_positions_file.name:"corners.npz",
         Setting.save_corner_positions.name:False,
@@ -152,14 +154,15 @@ def main(argv=None):
     
     parser.add_argument("-f", "--" + Setting.folder.name, help="Path to root folder to work in", 
                         required=False, default=defaults[Setting.folder.name])
-    parser.add_argument("-v", "--" + Setting.cameras.name,metavar="VIDEO", nargs='+', 
+    parser.add_argument("-v", "--" + Setting.videos.name,metavar="VIDEO", nargs='+', 
                         action=required_length(1, 10),type=string_arr,
                         help="input stereo video tuple (left, right) or a single video file,"+
                         " relative to the 'folder' argument", 
-                        required=False, default=defaults[Setting.cameras.name])
+                        required=False, default=defaults[Setting.videos.name])
     
     #============== CALIBRATION PREVIEW ===========================================================#
     #TODO: test
+    #TODO: remove preview setting, just use preview_files --> preview_images instead (None means off)
     parser.add_argument("-cpf", "--" + Setting.preview_files.name, nargs='+', help="input frames to test"+
                         " calibration result (currently only for stereo)", 
                         required=False, default= ["left.png","right.png"], 
@@ -200,6 +203,9 @@ def main(argv=None):
                         " frame_numbers array."+
                         " If specified, program filters frame pairs based on these numbers instead of other"+
                         " criteria.",required=False, default=None)
+    parser.add_argument("-tr", "--"+Setting.time_range.name, 
+                        help="(Approximate) time range (seconds) for the calibration seeking algorithm in 'unsynced' mode.",
+                        nargs=2, type=int)
     
     #============== STORAGE OF BOARD INNER CORNER POSITIONS =======================================#
     parser.add_argument("-pf", "--" + Setting.corner_positions_file.name,
@@ -297,10 +303,11 @@ def main(argv=None):
         dump(setting_dict, file_stream, Dumper=Dumper)
         file_stream.close()
     
-    if args.unsynced:
+    if args.unsynced: 
         app = ApplicationUnsynced(args)
-        app.gather_frame_data()
-        print(app.calibrate_time_variance())
+        app.find_calibration_intervals()
+        #app.gather_frame_data()
+        #print(app.calibrate_time_variance())
     else:
         app = ApplicationSynced(args)
         app.gather_frame_data()

@@ -166,6 +166,10 @@ class Camera(object):
     def read_next_frame(self):
         self.more_frames_remain, self.frame = self.cap.read()
     
+    def read_at_pos(self,ix_frame):
+        self.cap.set(cv2.CAP_PROP_POS_FRAMES,ix_frame)
+        self.more_frames_remain, self.frame = self.cap.read()
+    
     def read_previous_frame(self):
         '''
         For traversing the video backwards.
