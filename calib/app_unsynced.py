@@ -103,7 +103,7 @@ class ApplicationUnsynced(Application):
                              min(around_frame + frame_range,camera.frame_count), interval):
             camera.read_at_pos(i_frame)
             if(verbose):
-                print('.',end="",flush=True)
+                print('-',end="",flush=True)
             if(camera.approximate_corners(self.board_dims)):
                 return i_frame
         return -1
@@ -124,7 +124,7 @@ class ApplicationUnsynced(Application):
                     frame_range[0] = i_frame
                     miss_count = 0
                 else:
-                    if(sample_interval_frames > 64):
+                    if(abs(sample_interval_frames) > 64):
                         retval = self.__browse_around_frame(camera,i_frame, frame_range=64, 
                                                                verbose=verbose)
                         if(retval == -1):
