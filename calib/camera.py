@@ -156,7 +156,12 @@ class Camera(object):
         intrinsics = CameraIntrinsics.from_xml(intrinsics_elem)
         return Camera(video_path,index,intrinsics)
         
+    def reopen(self):
+        self.cap.release()
+        self.cap = cv2.VideoCapture(self.video_path)
+        self.more_frames_remain = True
         
+
     def clear_results(self):
         self.poses = []
         self.imgpoints = []

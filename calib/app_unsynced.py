@@ -98,6 +98,7 @@ class ApplicationUnsynced(Application):
         if len(self.cameras) < 2:
             raise ValueError("Expecting at least two videos & input calibration parameters for the corresponding videos")
     
+    #use this instead of just camera.approximate_corners for very "sparse" videos, with lots of bad frames
     def __browse_around_frame(self,camera,around_frame, frame_range = 64, interval = 16, verbose=True):
         for i_frame in range(max(around_frame - frame_range,0),
                              min(around_frame + frame_range,camera.frame_count), interval):
@@ -109,7 +110,7 @@ class ApplicationUnsynced(Application):
         return -1
             
     
-    def __seek_calib_limit_aux2(self, camera, frame_range, verbose = True):
+    def __seek_calib_limit(self, camera, frame_range, verbose = True):
         frame_range_signed_length = frame_range[1] - frame_range[0] 
         sample_interval_frames = frame_range_signed_length // 2
         while sample_interval_frames != 0:
@@ -124,18 +125,10 @@ class ApplicationUnsynced(Application):
                     frame_range[0] = i_frame
                     miss_count = 0
                 else:
-                    if(abs(sample_interval_frames) > 64):
-                        retval = self.__browse_around_frame(camera,i_frame, frame_range=64, 
-                                                               verbose=verbose)
-                        if(retval == -1):
-                            miss_count+=1
-                        else:
-                            frame_range[0] = retval
-                            miss_count = 0
-                    else:
-                        miss_count+=1
-                    if(miss_count > 2):
-                        #too many frames w/o calibration board, go to finer scan
+                    miss_count+=1
+                    if(miss_count > 3):
+                        #too many frames w/o calibration board, highly unlikely those are all bad frames,
+                        #go to finer scan
                         frame_range[1] = i_frame
                         break
             sample_interval_frames = round(sample_interval_frames/2)
@@ -143,8 +136,6 @@ class ApplicationUnsynced(Application):
     
     def find_calibration_intervals(self, verbose = True):
         for camera in self.cameras:
-            calibration_start = 0
-            calibration_end = sys.maxsize
             
             if(self.args.time_range == None):
                 rough_seek_range = (0,camera.frame_count)
@@ -154,10 +145,12 @@ class ApplicationUnsynced(Application):
             
             if(verbose):
                 print("Performing initial rough scan of {0:s} for calibration board...".format(camera.name))
+                
             found = False
             #find approximate start and end of calibration
             sample_interval_frames = camera.frame_count // 2
             
+            camera.reopen()#workaround for ffmpeg/avc bug
             while not found and sample_interval_frames > 4:
                 if(verbose):
                     print("\nSamplng every {:d} frames".format(sample_interval_frames))
@@ -172,18 +165,46 @@ class ApplicationUnsynced(Application):
                         print("Hit at {:d}!".format(i_frame))
                         found = True
                         break
+
                 sample_interval_frames //= 2
-                        
+            
+         
             ###find exact start & end of streak
             i_frame = calibration_start
             if(verbose):
                 print("Seeking first calibration frame of {0:s}...".format(camera.name))
+
+            
+#             frame_range = [calibration_start,rough_seek_range[0]]
+#             frame_range_signed_length = frame_range[1] - frame_range[0] 
+#             sample_interval_frames = frame_range_signed_length // 2
+#             while sample_interval_frames != 0:
+#                 miss_count = 0
+#                 if(verbose):
+#                     print("\nSamplng every {:d} frames within {:s}".format(sample_interval_frames, str(frame_range)))
+#                 for i_frame in range(frame_range[0],frame_range[1], sample_interval_frames):
+#                     camera.read_at_pos(i_frame)
+#                     if(verbose):
+#                         print('.',end="",flush=True)
+#                     if(camera.approximate_corners(self.board_dims)):
+#                         frame_range[0] = i_frame
+#                         miss_count = 0
+#                     else:
+#                         miss_count+=1
+#                         if(miss_count > 3):
+#                             #too many frames w/o calibration board, highly unlikely those are all bad frames,
+#                             #go to finer scan
+#                             frame_range[1] = i_frame
+#                             break
+#                 sample_interval_frames = round(sample_interval_frames/2)
+                
+                
             #traverse backward from inexact start
-            calibration_start = self.__seek_calib_limit_aux2(camera, [calibration_start,rough_seek_range[0]], verbose)
+            calibration_start = self.__seek_calib_limit(camera, [calibration_start,rough_seek_range[0]], verbose)
             if(verbose):
                 print("Seeking last calibration frame of {0:s}...".format(camera.name))
             #traverse forward from inexact end
-            calibration_end = self.__seek_calib_limit_aux2(camera, [calibration_end,rough_seek_range[1]],
+            calibration_end = self.__seek_calib_limit(camera, [calibration_end,rough_seek_range[1]],
                                                            verbose)
             camera.calibration_range = (calibration_start, calibration_end)
             if(verbose):
