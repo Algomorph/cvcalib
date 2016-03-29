@@ -86,7 +86,6 @@ class Setting(Enum):
     save_settings = Argument(False, '?', 'bool_flag', 'store_true',
                              "Save (or update) setting file.",
                              console_only=True, required=False)
-
     # ================= WORK FOLDER, INPUT & OUTPUT FILES =============================================================#
     folder = Argument("./", '?', str, 'store',
                       "Path to root folder to work in",
@@ -203,7 +202,6 @@ class Setting(Enum):
     use_fisheye_model = Argument(False, '?', 'bool_flag', 'store_true',
                                  "Use the fisheye distortion model.",
                                  console_only=False, required=False, shorthand="cf")
-
     # ============== TIME SYNCHRONIZATION CONTROLS ====================================================================#
     unsynced = Argument(False, '?', 'bool_flag', 'store_true',
                         "Used to find extrinsics between multiple unsynchronized cameras."
@@ -215,7 +213,6 @@ class Setting(Enum):
     max_frame_offset = Argument(100, '?', int, 'store',
                                 "Used for unsynced calibration only: maximum delay, in frames, between videos.",
                                 console_only=False, required=False)
-
     # ============== VERBOSITY CONTROLS   =============================================================================#
     skip_printing_output = Argument(False, '?', 'bool_flag', 'store_true',
                                     "Skip printing output.",
@@ -229,6 +226,10 @@ class Setting(Enum):
 
     @staticmethod
     def generate_defaults_dict():
+        """
+        @rtype: dict
+        @return: dictionary of Setting defaults
+        """
         dict = {}
         for item in Setting:
             dict[item.name] = item.value.default
@@ -237,6 +238,9 @@ class Setting(Enum):
     @staticmethod
     def generate_parser(defaults, console_only=False, description="Description N/A", parents=None):
         """
+        @rtype: argparse.ArgumentParser
+        @return: either a console-only or a config_file+console parser using the specified defaults and, optionally,
+        parents.
         @type defaults: dict
         @param defaults: dictionary of default settings and their values.
         For a conf-file+console parser, these come from the config file. For a console-only parser, these are generated.
