@@ -1,5 +1,5 @@
-'''
- calib_app
+"""
+ calib.app.py
 
        Authors: Gregory Kramida
    Copyright: (c) Gregory Kramida 2016 
@@ -15,52 +15,50 @@
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
-'''
+"""
 
 from abc import ABCMeta
-from calib.camera import Camera
 import numpy as np
 import os
 import os.path as osp
 import re, datetime
 import cv2
 
-class Application(object):
-    __metaclass__ = ABCMeta
-    '''
-    Base-level abstract Calibration Application class. Contains routines shared
-    by all calibration applications.
-    '''
 
+class Application(object):
+    """
+        Base-level abstract Calibration Application class. Contains routines shared
+        by all calibration applications.
+    """
+    __metaclass__ = ABCMeta
 
     def __init__(self, args):
-        '''
+        """
         Base constructor
-        '''
+        """
         self.args = args
-        
+
         self.frame_numbers = None
-        
-        self.full_frame_folder_path = osp.join(args.folder,args.filtered_image_folder)
-        #if image folder (for captured frames) doesn't yet exist, create it
+
+        self.full_frame_folder_path = osp.join(args.folder, args.filtered_image_folder)
+        # if image folder (for captured frames) doesn't yet exist, create it
         if args.save_images and not os.path.exists(self.full_frame_folder_path):
             os.makedirs(self.full_frame_folder_path)
-        self.full_corners_path = osp.join(args.folder,args.corners_file)
-        
-        #set up board (3D object points of checkerboard used for calibration)
-        self.objpoints = []
-        self.board_dims = (args.board_width,args.board_height)
-        self.board_object_corner_set = np.zeros((args.board_height*args.board_width,1,3), np.float32)
-        self.board_object_corner_set[:,:,:2] = np.indices(self.board_dims).T.reshape(-1, 1, 2)
+        self.full_corners_path = osp.join(args.folder, args.corners_file)
+
+        # set up board (3D object points of checkerboard used for calibration)
+        self.object_points = []
+        self.board_dims = (args.board_width, args.board_height)
+        self.board_object_corner_set = np.zeros((args.board_height * args.board_width, 1, 3), np.float32)
+        self.board_object_corner_set[:, :, :2] = np.indices(self.board_dims).T.reshape(-1, 1, 2)
         self.board_object_corner_set *= args.board_square_size
-        
+
         self.pixel_difference_factor = 1.0 / (self.board_dims[0] * self.board_dims[1] * 3 * 256.0)
-        
-        #some vars set to default
+
+        # some vars set to default
         self.criteria_subpix = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 40, 0.001)
-        
-        if(args.output is None):
-            args.output = "intrinsics{0:s}.xml".format(re.sub(r"-|:","",
-                                                         str(datetime.datetime.now())[:-7])
-                                                  .replace(" ","-"))
-            
+
+        if (args.output is None):
+            args.output = "intrinsics{0:s}.xml".format(re.sub(r"-|:", "",
+                                                              str(datetime.datetime.now())[:-7])
+                                                       .replace(" ", "-"))

@@ -17,7 +17,7 @@
  limitations under the License.
 '''
 import calib.xml as xml
-from lxml import etree#@UnresolvedImport
+from lxml import etree
 import numpy as np
 
 

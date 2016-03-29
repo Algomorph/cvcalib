@@ -234,7 +234,7 @@ class ApplicationSynced(Application):
         self.frame_numbers = frame_number_sets[0]
         
         for i_frame in range(usable_frame_ct):#@UnusedVariable
-            self.objpoints.append(self.board_object_corner_set)
+            self.object_points.append(self.board_object_corner_set)
         return usable_frame_ct
     
     def add_corners_for_all(self, usable_frame_ct, report_interval, i_frame):
@@ -246,7 +246,7 @@ class ApplicationSynced(Application):
             video.add_corners(i_frame, self.criteria_subpix, 
                               self.full_frame_folder_path, self.args.save_images)
         self.frame_numbers.append(i_frame)
-        self.objpoints.append(self.board_object_corner_set)
+        self.object_points.append(self.board_object_corner_set)
     
     def filter_frame_manually(self):
         if len(self.cameras) == 2:
@@ -350,7 +350,7 @@ class ApplicationSynced(Application):
         return usable_frame_ct
         
     def gather_frame_data(self):
-        self.objpoints = []
+        self.object_points = []
         print("Gathering frame data...")
         usable_frame_ct = 0
         if(self.args.load_corners):
@@ -365,7 +365,7 @@ class ApplicationSynced(Application):
             usable_frame_ct = len(self.cameras[0].imgpoints)
             
             for i_frame in range(usable_frame_ct): # @UnusedVariable
-                self.objpoints.append(self.board_object_corner_set)
+                self.object_points.append(self.board_object_corner_set)
             
         else:
             if(self.args.load_images):
@@ -390,15 +390,15 @@ class ApplicationSynced(Application):
         print ("Calibrating for max. {0:d} iterations...".format(self.args.max_iterations))
         
         if len(self.cameras) > 1:
-            cutils.stereo_calibrate(self.rig, 
-                                     self.objpoints, 
-                                     self.args.use_fisheye_model, 
-                                     self.args.use_rational_model, 
-                                     self.args.use_tangential_coeffs, 
-                                     self.args.precalibrate_solo,
-                                     self.args.stereo_only, 
-                                     self.args.max_iterations,
-                                     self.args.input_calibration != None)
+            cutils.stereo_calibrate(self.rig,
+                                    self.object_points,
+                                    self.args.use_fisheye_model,
+                                    self.args.use_rational_model,
+                                    self.args.use_tangential_coeffs,
+                                    self.args.precalibrate_solo,
+                                    self.args.stereo_only,
+                                    self.args.max_iterations,
+                                    self.args.input_calibration != None)
             if self.args.preview:
                 l_im = cv2.imread(osp.join(self.args.folder,self.args.preview_files[0]))
                 r_im = cv2.imread(osp.join(self.args.folder,self.args.preview_files[1]))
@@ -409,11 +409,11 @@ class ApplicationSynced(Application):
                 cv2.imwrite(path_r, r_im)
             calibration_result = self.rig
         else:
-            cutils.calibrate_wrapper(self.camera, self.objpoints,
-                                      self.args.use_rational_model,
-                                      self.args.use_tangential_coeffs,
-                                      self.args.max_iterations,
-                                      self.args.input_calibration != None)
+            cutils.calibrate_wrapper(self.camera, self.object_points,
+                                     self.args.use_rational_model,
+                                     self.args.use_tangential_coeffs,
+                                     self.args.max_iterations,
+                                     self.args.input_calibration != None)
             calibration_result = self.camera
         if not self.args.skip_printing_output:
             print(calibration_result)
