@@ -220,7 +220,7 @@ class ApplicationUnsynced(Application):
             longest_still_streak = []
             still_streak = [0, 0]
             still_streaks = []
-            while (camera.more_frames_remain and (not (self.args.manual_filter and key == 27))):
+            while camera.more_frames_remain and not (self.args.manual_filter and key == 27):
                 add_corners = False
                 if not self.args.frame_numbers or i_frame in self.frame_numbers:
                     # TODO: add blur filter support to camera class
@@ -415,9 +415,10 @@ class ApplicationUnsynced(Application):
 
     def gather_frame_data(self, verbose=True):
         if (self.args.load_corners):
-            self.board_object_corner_set = cio.load_corners(self.full_corners_path, self.videos,
+            self.board_object_corner_set = cio.load_corners(self.aux_data_file, self.videos,
                                                             verbose=verbose)[0]
         else:
             self.run_capture(verbose)
             if (self.args.save_corners):
-                cio.save_corners(self.full_corners_path, self.videos, self.board_object_corner_set)
+                cio.save_corners(self.aux_data_file, os.path.join(self.args.folder,self.args.aux_data_file),
+                                 self.videos, self.board_object_corner_set)
