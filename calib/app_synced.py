@@ -341,14 +341,10 @@ class ApplicationSynced(Application):
         print("Gathering frame data...")
         usable_frame_ct = 0
         if (self.args.load_corners):
-            self.board_object_corner_set, frame_numbers = \
+            self.board_object_corner_set = \
                 cio.load_corners(self.aux_data_file, self.cameras)
 
-            if (type(frame_numbers) == type(None)):
-                self.frame_numbers = list(self.cameras[0].usable_frames.keys())
-            else:
-                # use legacy frame numbers
-                self.frame_numbers = frame_numbers
+            self.frame_numbers = list(self.cameras[0].usable_frames.keys())
             usable_frame_ct = len(self.cameras[0].imgpoints)
 
             for i_frame in range(usable_frame_ct):  # @UnusedVariable

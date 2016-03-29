@@ -172,7 +172,7 @@ class Setting(Enum):
                                   "Synced mode only.",
                                   console_only=False, required=False, shorthand="ft")
     frame_number_filter = Argument(False, '?', 'bool_flag', 'store_true',
-                                   "Use only frame numbers specified in the auxiliary data file. Synced mode only.",
+                                   "Use only frame numbers specified in the auxiliary data file.",
                                    console_only=False, required=False, shorthand="fn")
     time_range_hint = Argument(None, 2, int, 'store',
                                "Look at frames only within this time range (in seconds) when seeking exact periods of" +
@@ -307,8 +307,7 @@ def main():
 
     if args.unsynced:
         app = ApplicationUnsynced(args)
-        app.find_calibration_intervals()
-        # app.gather_frame_data()
+        app.gather_frame_data()
         # print(app.calibrate_time_variance())
     else:
         app = ApplicationSynced(args)

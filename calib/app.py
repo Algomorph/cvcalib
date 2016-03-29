@@ -45,8 +45,13 @@ class Application(object):
         if args.save_images and not os.path.exists(self.full_frame_folder_path):
             os.makedirs(self.full_frame_folder_path)
 
+        # load or initialize auxiliary data
         if args.aux_data_file is not None:
-            self.aux_data_file = np.load(osp.join(args.folder, args.aux_data_file))
+            self.aux_data_path = os.path.join(self.args.folder, self.args.aux_data_file)
+            if osp.isfile(self.aux_data_path):
+                self.aux_data_file = np.load(osp.join(args.folder, args.aux_data_file))
+            else:
+                self.aux_data_file = {}
 
         # set up board (3D object points of checkerboard used for calibration)
         self.object_points = []

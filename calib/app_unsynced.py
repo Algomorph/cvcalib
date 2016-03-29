@@ -79,13 +79,6 @@ class ApplicationUnsynced(Application):
                 else:
                     raise RuntimeError("Unsupported calibration file format.")
 
-        if args.frame_numbers:
-            path = os.path.join(args.folder, args.frame_numbers)
-            print("Loading frame numbers from \"{0:s}\"".format(path))
-            npzfile = np.load(path)
-            for video_filename in args.videos:
-                self.frame_numbers.append(set(npzfile["video_filename"]))
-
         ix_video = 0
         self.cameras = []
         # load videos
@@ -109,23 +102,23 @@ class ApplicationUnsynced(Application):
                 return i_frame
         return -1
 
-    def __seek_calib_limit(self, camera, frame_range, verbose=True):
+    def __seek_calib_limit(self, camera, frame_range, max_miss_count=3, verbose=True):
         frame_range_signed_length = frame_range[1] - frame_range[0]
         sample_interval_frames = frame_range_signed_length // 2
         while sample_interval_frames != 0:
             miss_count = 0
-            if (verbose):
-                print("\nSamplng every {:d} frames within {:s}".format(sample_interval_frames, str(frame_range)))
+            if verbose:
+                print("\nSampling every {:d} frames within {:s}".format(sample_interval_frames, str(frame_range)))
             for i_frame in range(frame_range[0], frame_range[1], sample_interval_frames):
                 camera.read_at_pos(i_frame)
-                if (verbose):
+                if verbose:
                     print('.', end="", flush=True)
-                if (camera.approximate_corners(self.board_dims)):
+                if camera.approximate_corners(self.board_dims):
                     frame_range[0] = i_frame
                     miss_count = 0
                 else:
                     miss_count += 1
-                    if (miss_count > 3):
+                    if (miss_count > max_miss_count):
                         # too many frames w/o calibration board, highly unlikely those are all bad frames,
                         # go to finer scan
                         frame_range[1] = i_frame
@@ -134,15 +127,16 @@ class ApplicationUnsynced(Application):
         return frame_range[0]
 
     def find_calibration_intervals(self, verbose=True):
+        start = time.time()
         for camera in self.cameras:
 
-            if (self.args.time_range == None):
+            if self.args.time_range_hint is None:
                 rough_seek_range = (0, camera.frame_count)
             else:
-                rough_seek_range = (round(max(0, camera.fps * self.args.time_range[0])),
-                                    round(min(camera.fps * self.args.time_range[1], camera.frame_count)))
+                rough_seek_range = (round(max(0, camera.fps * self.args.time_range_hint[0])),
+                                    round(min(camera.fps * self.args.time_range_hint[1], camera.frame_count)))
 
-            if (verbose):
+            if verbose:
                 print("Performing initial rough scan of {0:s} for calibration board...".format(camera.name))
 
             found = False
@@ -151,15 +145,15 @@ class ApplicationUnsynced(Application):
 
             camera.reopen()  # workaround for ffmpeg AVC/H.264 bug
             while not found and sample_interval_frames > 4:
-                if (verbose):
+                if verbose:
                     print("\nSamplng every {:d} frames".format(sample_interval_frames))
                 for i_frame in range(rough_seek_range[0],
                                      rough_seek_range[1],
                                      sample_interval_frames):
                     camera.read_at_pos(i_frame)
-                    if (verbose):
+                    if verbose:
                         print('.', end="", flush=True)
-                    if (camera.approximate_corners(self.board_dims)):
+                    if camera.approximate_corners(self.board_dims):
                         calibration_end = calibration_start = i_frame
                         print("Hit at {:d}!".format(i_frame))
                         found = True
@@ -167,34 +161,39 @@ class ApplicationUnsynced(Application):
 
                 sample_interval_frames //= 2
 
-            ###find exact start & end of streak
+            # ** find exact start & end of streak **
             i_frame = calibration_start
-            if (verbose):
+            if verbose:
                 print("Seeking first calibration frame of {0:s}...".format(camera.name))
 
             # traverse backward from inexact start
             calibration_start = self.__seek_calib_limit(camera, [calibration_start, rough_seek_range[0]], verbose)
-            if (verbose):
+            if verbose:
                 print("Seeking last calibration frame of {0:s}...".format(camera.name))
             # traverse forward from inexact end
             calibration_end = self.__seek_calib_limit(camera, [calibration_end, rough_seek_range[1]],
                                                       verbose)
-            camera.calibration_range = (calibration_start, calibration_end)
-            if (verbose):
+            camera.calibration_interval = (calibration_start, calibration_end)
+            if verbose:
                 print("Found calibration frame range for camera {:s} to be within {:s}"
-                      .format(camera.name, str(camera.calibration_range)))
+                      .format(camera.name, str(camera.calibration_interval)))
+        end = time.time()
+        if verbose:
+            print("Total calibration interval seek time: {:.3f} seconds.".format(end - start))
+        if self.args.save_calibration_intervals:
+            cio.save_calibration_intervals(self.aux_data_file, self.aux_data_path, self.cameras, verbose=verbose)
 
     def __terminate_still_streak(self, streak, longest_streak, still_streaks, verbose=True):
         min_still_streak = self.args.max_frame_offset * 2 + 1
         # min_still_streak = 30
 
-        if (len(streak) >= min_still_streak):
+        if len(streak) >= min_still_streak:
             still_streaks.append(streak)
         else:
             return [0, 0], longest_streak
-        if (len(streak) > len(longest_streak)):
+        if len(streak) > len(longest_streak):
             longest_streak = streak
-            if (verbose):
+            if verbose:
                 print("Longest consecutive streak with calibration board "
                       + "staying still relative to camera: {:d}".format(streak[1] - streak[0]))
         return [0, 0], longest_streak
@@ -206,13 +205,14 @@ class ApplicationUnsynced(Application):
         report_interval = 5.0  # seconds
 
         for camera in self.cameras:
-            i_frame = 0
-            if (verbose):
+            i_frame = camera.calibration_interval[0]
+            if verbose:
                 print("Capturing calibration board points for camera {0:s}".format(camera.name))
 
             # just in case we're running capture again
             camera.clear_results()
-            camera.scroll_to_beginning()
+            camera.scroll_to_frame(i_frame)
+            total_calibration_frames = camera.calibration_interval[1] - camera.calibration_interval[0]
             # init capture
             camera.read_next_frame()
             key = 0
@@ -220,9 +220,10 @@ class ApplicationUnsynced(Application):
             longest_still_streak = []
             still_streak = [0, 0]
             still_streaks = []
-            while camera.more_frames_remain and not (self.args.manual_filter and key == 27):
+            frame_counter = 0
+            while i_frame < camera.calibration_interval[1] and not (self.args.manual_filter and key == 27):
                 add_corners = False
-                if not self.args.frame_numbers or i_frame in self.frame_numbers:
+                if not self.args.frame_number_filter or i_frame in camera.usable_frames:
                     # TODO: add blur filter support to camera class
                     add_corners = camera.approximate_corners(self.board_dims)
 
@@ -238,10 +239,10 @@ class ApplicationUnsynced(Application):
                         camera.set_previous_to_current()
 
                         cur_corners = camera.imgpoints[len(camera.imgpoints) - 1]
-                        if (len(still_streak) > 0):
+                        if len(still_streak) > 0:
                             prev_corners = camera.imgpoints[len(camera.imgpoints) - 2]
                             mean_px_dist_to_prev = (((cur_corners - prev_corners) ** 2).sum(axis=2) ** .5).mean()
-                            if (mean_px_dist_to_prev < 0.5):
+                            if mean_px_dist_to_prev < 0.5:
                                 still_streak[1] = i_frame
                             else:
                                 still_streak, longest_still_streak = \
@@ -250,28 +251,33 @@ class ApplicationUnsynced(Application):
                         else:
                             still_streak[0] = i_frame
 
-                if (not add_corners):
+                if not add_corners:
                     still_streak, longest_still_streak = \
                         self.__terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
 
                 camera.read_next_frame()
+                frame_counter += 1
                 # fixed time interval reporting
-                if (verbose and time.time() - check_time > report_interval):
-                    print("Processed {:.2%}".format(i_frame / camera.frame_count))
+                if verbose and time.time() - check_time > report_interval:
+                    print("Processed: {:.2%}, frame: {:d}, # still streaks: {:d}"\
+                          .format(frame_counter / total_calibration_frames, i_frame, len(still_streaks)))
                     check_time += report_interval
                 i_frame += 1
+
 
             # in case the last frame was also added
             still_streak, longest_still_streak = \
                 self.__terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
             camera.still_streaks = [tuple(streak) for streak in still_streaks]
             if verbose:
-                print(" Done. Found {:d} usable frames.".format(len(camera.usable_frames)))
+                print(" Done. Found {:d} usable frames. Longest still streak: {:d}".format(len(camera.usable_frames),
+                                                                                           len(longest_still_streak)))
 
         if self.args.manual_filter:
             cv2.destroyAllWindows()
 
-    def __aux_streak_within(self, source_streak, target_streak):
+    @staticmethod
+    def __aux_streak_within(source_streak, target_streak):
         source_middle = source_streak[0] + (source_streak[1] - source_streak[0]) // 2
         return (((target_streak[0] <= source_streak[0] <= target_streak[1]) or
                  (target_streak[0] <= source_streak[1] <= target_streak[1])) and
@@ -282,7 +288,7 @@ class ApplicationUnsynced(Application):
         look for streaks in target streak set that overlap at or within the bounds of each
         streak within the source streak set
         """
-        if (verbose):
+        if verbose:
             print("For each pair of videos, looking for timewise-overlapping"
                   + "streaks of frames where calibration board is not moving.")
         for vid in self.videos:
@@ -296,10 +302,10 @@ class ApplicationUnsynced(Application):
                 for source_streak in source_streaks:
                     found = False
                     ix_target_streak = 0
-                    while (not found and ix_target_streak < len(target_streaks)):
+                    while not found and ix_target_streak < len(target_streaks):
                         target_streak = target_streaks[ix_target_streak]
-                        if (self.__aux_streak_within(source_streak, target_streak)):
-                            overlaps.append((source_streak), (target_streak))
+                        if __aux_streak_within(source_streak, target_streak):
+                            overlaps.append((source_streak, target_streak))
                         ix_target_streak += 1
                 self.videos[i_vid].still_streak_overlaps[j_vid] = overlaps
 
@@ -323,7 +329,7 @@ class ApplicationUnsynced(Application):
                 tgt_range_len = target_range[1] - target_range[0]
                 tgt_half_len = tgt_range_len // 2
                 src_half_len = src_range_len // 2
-                if (src_range_len > tgt_range_len):
+                if src_range_len > tgt_range_len:
                     increment = 0 if tgt_range_len % 2 == 0 else 1
                     src_mid = source_range[0] + src_half_len
                     source_range = (src_mid - tgt_half_len, src_mid + tgt_half_len + increment)
@@ -337,10 +343,11 @@ class ApplicationUnsynced(Application):
                 for ix_frame in range(target_range[0] + cutoff, target_range[1] - cutoff):
                     imgpts_tgt.append(target_cam.imgpoints[target_cam.usable_frames[ix_frame]])
 
-            rig = StereoRig((source_cam, target_cam))
+            rig = StereoRig((source_cam.copy(), target_cam.copy()))
+            rig.cameras[0].imgpoints = imgpts_src
+            rig.cameras[1].imgpoints = imgpts_tgt
 
             stereo_calibrate(rig,
-                             imgpts_tgt,
                              self.object_points, self.frame_dims,
                              self.args.use_fisheye_model,
                              self.args.use_rational_model,
@@ -352,8 +359,6 @@ class ApplicationUnsynced(Application):
             target_cam.extrinsics = rig.extrinsics
 
     def calibrate_time_reprojection(self, verbose=True):
-        # TODO: this function is currently all old code borrowed from a function that doesn't really work
-
         # for only two videos in this first version
         # assume frames are contiguous for this version
         max_offset = self.args.max_frame_offset
@@ -363,7 +368,7 @@ class ApplicationUnsynced(Application):
         frame_range_max = min((vid0.frame_count, vid1.frame_count - max_offset))
         frame_range_min = max_offset
 
-        if (vid1.frame_count < 2 * max_offset + 1):
+        if vid1.frame_count < 2 * max_offset + 1:
             raise ValueError("Not enough frames for offset finding")
 
         distance_data = []
@@ -371,7 +376,7 @@ class ApplicationUnsynced(Application):
 
         # find distances between videos at each frame, assuming a specific frame offset
         for offset in range(-max_offset, max_offset):
-            if (verbose):
+            if verbose:
                 print("Examining possible offset of {:d} frames.".format(offset))
             distance_set = []
             frame_numbers = []
@@ -414,11 +419,16 @@ class ApplicationUnsynced(Application):
                med_poses[ix]
 
     def gather_frame_data(self, verbose=True):
-        if (self.args.load_corners):
+        if self.args.load_corners:
             self.board_object_corner_set = cio.load_corners(self.aux_data_file, self.videos,
                                                             verbose=verbose)[0]
         else:
+            if self.args.load_calibration_intervals:
+                cio.load_calibration_intervals(self.aux_data_file, self.cameras, verbose=verbose)
+            else:
+                self.find_calibration_intervals(verbose)
             self.run_capture(verbose)
-            if (self.args.save_corners):
-                cio.save_corners(self.aux_data_file, os.path.join(self.args.folder,self.args.aux_data_file),
-                                 self.videos, self.board_object_corner_set)
+            if self.args.save_corners:
+                cio.save_corners(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
+                                 self.videos,
+                                 self.board_object_corner_set)

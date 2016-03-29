@@ -72,19 +72,20 @@ class Pose(object):
 
 class Camera(object):
     """
-    Represents a video object, a simple convenience wrapper around OpenCV's video_capture
+    Represents a video object & camera that was used to capture it, a wrapper around OpenCV's video_capture
     """
+    # TODO: Video and Camera need to be two separate classes, where a camera may include one or more videos
     _unindexed_instance_counter = 0
-    _used_inexes = set()
+    _used_indexes = set()
 
-    def __init__(self, video_path, index=None, intrinsics=None, extrinsics=None, filters=[]):
+    def __init__(self, video_path, index=None, intrinsics=None, extrinsics=None, load_video=True, filters=[]):
         """
         Build a camera from the specified file at the specified directory
         """
         if (index is None):
             index = Camera._unindexed_instance_counter
             CameraIntrinsics._unindexed_instance_counter += 1
-        if (index in Camera._used_inexes):
+        if (index in Camera._used_indexes):
             raise RuntimeError("{:s}: index {:d} was already used.".format(self.__class__.__name__, index))
         self.index = index
         self.cap = None
@@ -92,37 +93,37 @@ class Camera(object):
         if video_path[-3:] != "mp4":
             raise ValueError("Specified file does not have .mp4 extension.")
         self.video_path = video_path
-        if not os.path.isfile(self.video_path):
-            raise ValueError("No video file found at {0:s}".format(self.video_path))
         self.name = os.path.basename(video_path)[:-4]
-        self.cap = cv2.VideoCapture(self.video_path)
-        if not self.cap.isOpened():
-            raise ValueError("Could not open specified .mp4 file ({0:s}) for capture!".format(self.video_path))
+        if load_video:
+            self.reopen()
+        else:
+            self.cap = None
+            self.frame_dims = None
+            self.frame = None
+            self.previous_frame = None
+            self.fps = None
+            self.frame_count = 0
+
         # TODO: refactor to image_points
         self.imgpoints = []
-        self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                           int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
-        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        if intrinsics == None:
+        if intrinsics is None:
             self.intrinsics = CameraIntrinsics(self.frame_dims, index=index)
         else:
             self.intrinsics = intrinsics
-        if (extrinsics == None):
+        if extrinsics is None:
             self.extrinsics = CameraExtrinsics()
         else:
             self.extrinsics = extrinsics
 
-        if (self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
-            self.n_channels = 3
-        else:
-            self.n_channels = 1
         self.current_image_points = None
-        self.frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
-        self.previous_frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
+
         self.more_frames_remain = True
         self.poses = []
         self.usable_frames = {}
+        self.calibration_interval = (0,self.frame_count)
+
+    def copy(self):
+        return Camera(self.video_path, index=None, intrinsics=self.intrinsics, extrinsics=self.extrinsics, load_video=False)
 
     def to_xml(self, root_element, as_sequence=False):
         """
@@ -159,12 +160,26 @@ class Camera(object):
         index = int(element.get("index"))
         intrinsics_elem = element.find(CameraIntrinsics.__name__)  # @UndefinedVariable
         intrinsics = CameraIntrinsics.from_xml(intrinsics_elem)
-        return Camera(video_path, index, intrinsics)
+        return Camera(video_path, index, intrinsics, load_video=False)
 
     def reopen(self):
-        self.cap.release()
+        if self.cap is not None:
+            self.cap.release()
+        if not os.path.isfile(self.video_path):
+            raise ValueError("No video file found at {0:s}".format(self.video_path))
         self.cap = cv2.VideoCapture(self.video_path)
-        self.more_frames_remain = True
+        if not self.cap.isOpened():
+            raise ValueError("Could not open specified .mp4 file ({0:s}) for capture!".format(self.video_path))
+        self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                           int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
+        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        if (self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
+            self.n_channels = 3
+        else:
+            self.n_channels = 1
+        self.frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
+        self.previous_frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
 
     def clear_results(self):
         self.poses = []
@@ -204,7 +219,7 @@ class Camera(object):
         self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_count - 1)  # @UndefinedVariable
 
     def __del__(self):
-        if self.cap != None:
+        if self.cap is not None:
             self.cap.release()
 
     def approximate_corners(self, board_dims):

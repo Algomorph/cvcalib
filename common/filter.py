@@ -1,4 +1,4 @@
-'''
+"""
 /home/algomorph/Factory/calib_video_opencv/common/filter.py.
 Created on Feb 9, 2016.
 @author: Gregory Kramida
@@ -17,10 +17,10 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
-import cv2#@UnresolvedImport 
-
+import cv2
+# TODO: move to StereoRig class and delete this module
 def filter_basic_stereo(videos, board_dims):
     l_frame = videos[0].frame
     r_frame = videos[1].frame
