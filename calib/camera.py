@@ -22,44 +22,44 @@ import os
 import cv2
 from calib.data import CameraIntrinsics, CameraExtrinsics
 import numpy as np
-from enum import Enum
 from lxml import etree
 
 
-# TODO: figure out how to deal with the filters
-class Filter(Enum):
-    flip_180 = 0
-
-
-def string_list_to_filter_list(string_list):
-    filter_list = []
-    for item in string_list:
-        if not item in Filter._member_map_:
-            raise ValueError("'{:s}' does not refer to any existing filter. " +
-                             "Please, use one of the following: {:s}"
-                             .format(item, str(Filter._member_names_)))
-        else:
-            filter_list.append(Filter[item])
-    return filter_list
+def homogenize_4vec(vec):
+    return np.array([vec[0] / vec[3], vec[1] / vec[3], vec[2] / vec[3], 1.0]).T
 
 
 class Pose(object):
     def __init__(self, T, T_inv=None, rvec=None, tvec=None):
         self.T = T
-        if (type(tvec) == type(None)):
+        if tvec is None:
             tvec = T[0:3, 3].reshape(3, 1)
-        if (type(rvec) == type(None)):
-            R = T[0:3, 0:3]
-            rvec = cv2.Rodrigues(R)[0]
-        if (type(T_inv) == type(None)):
-            R = cv2.Rodrigues(rvec)[0]
-            R_inv = R.T
-            tvec_inv = -R_inv.dot(tvec)
-            T_inv = np.vstack((np.append(R_inv, tvec_inv, 1), [0, 0, 0, 1]))
+        if rvec is None:
+            rot_mat = T[0:3, 0:3]
+            rvec = cv2.Rodrigues(rot_mat)[0]
+        if T_inv is None:
+            rot_mat = cv2.Rodrigues(rvec)[0]
+            rot_mat_inv = rot_mat.T
+            tvec_inv = -rot_mat_inv.dot(tvec)
+            T_inv = np.vstack((np.append(rot_mat_inv, tvec_inv, 1), [0, 0, 0, 1]))
 
         self.tvec = tvec
         self.rvec = rvec
         self.T_inv = T_inv
+
+    def dot(self, other_pose):
+        return Pose(self.T.dot(other_pose.T))
+
+    def diff(self, other_pose):
+        """
+        Find difference between two poses.
+        I.e. find the euclidean distance between unit vectors after being transformed by the poses.
+        """
+        unit_vector = np.array([1., 1., 1., 1.]).T
+        p1 = self.T.dot(unit_vector)
+        p2 = other_pose.T.dot(unit_vector)
+        #no need to homogenize, since the last entry will end up being one anyway
+        return np.linalg.norm(p1 - p2)#it will also not contrubute to the norm, i.e. 1 - 1 = 0
 
     @staticmethod
     def invert_pose_matrix(T):
@@ -78,24 +78,25 @@ class Camera(object):
     _unindexed_instance_counter = 0
     _used_indexes = set()
 
-    def __init__(self, video_path, index=None, intrinsics=None, extrinsics=None, load_video=True, filters=[]):
+    def __init__(self, video_path, index=None, intrinsics=None, extrinsics=None, load_video=True):
         """
         Build a camera from the specified file at the specified directory
         """
-        if (index is None):
+        if index is None:
             index = Camera._unindexed_instance_counter
-            CameraIntrinsics._unindexed_instance_counter += 1
-        if (index in Camera._used_indexes):
+            Camera._unindexed_instance_counter += 1
+        if index in Camera._used_indexes:
             raise RuntimeError("{:s}: index {:d} was already used.".format(self.__class__.__name__, index))
         self.index = index
         self.cap = None
-        # self.filters = string_list_to_filter_list(filters)
+
         if video_path[-3:] != "mp4":
             raise ValueError("Specified file does not have .mp4 extension.")
         self.video_path = video_path
         self.name = os.path.basename(video_path)[:-4]
         if load_video:
             self.reopen()
+            self.get_cap_props()
         else:
             self.cap = None
             self.frame_dims = None
@@ -103,6 +104,7 @@ class Camera(object):
             self.previous_frame = None
             self.fps = None
             self.frame_count = 0
+            self.n_channels = 0
 
         # TODO: refactor to image_points
         self.imgpoints = []
@@ -120,10 +122,11 @@ class Camera(object):
         self.more_frames_remain = True
         self.poses = []
         self.usable_frames = {}
-        self.calibration_interval = (0,self.frame_count)
+        self.calibration_interval = (0, self.frame_count)
 
     def copy(self):
-        return Camera(self.video_path, index=None, intrinsics=self.intrinsics, extrinsics=self.extrinsics, load_video=False)
+        return Camera(self.video_path, index=None, intrinsics=self.intrinsics, extrinsics=self.extrinsics,
+                      load_video=False)
 
     def to_xml(self, root_element, as_sequence=False):
         """
@@ -131,7 +134,7 @@ class Camera(object):
         @type root_element:  lxml.etree.SubElement
         @param root_element: the root element to build under
         """
-        if (as_sequence == False):
+        if not as_sequence:
             elem_name = self.__class__.__name__
         else:
             elem_name = "_"
@@ -162,6 +165,19 @@ class Camera(object):
         intrinsics = CameraIntrinsics.from_xml(intrinsics_elem)
         return Camera(video_path, index, intrinsics, load_video=False)
 
+    def get_cap_props(self):
+        self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+                           int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
+
+        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
+        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
+        if self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0:
+            self.n_channels = 3
+        else:
+            self.n_channels = 1
+        self.frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
+        self.previous_frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
+
     def reopen(self):
         if self.cap is not None:
             self.cap.release()
@@ -170,16 +186,6 @@ class Camera(object):
         self.cap = cv2.VideoCapture(self.video_path)
         if not self.cap.isOpened():
             raise ValueError("Could not open specified .mp4 file ({0:s}) for capture!".format(self.video_path))
-        self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                           int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
-        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        if (self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0):
-            self.n_channels = 3
-        else:
-            self.n_channels = 1
-        self.frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
-        self.previous_frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
 
     def clear_results(self):
         self.poses = []

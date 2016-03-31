@@ -31,8 +31,8 @@ def load_corners(archive, cameras, board_height=None,
         object_point_set = archive[OBJECT_POINT_SET]
     else:
         object_point_set = geom.generate_object_points(board_height, board_width, board_square_size)
-    archive.files.remove(OBJECT_POINT_SET)
 
+    # legacy frame numbers
     if FRAME_NUMBERS in archive:
         frame_numbers = archive[FRAME_NUMBERS]
         for camera in cameras:
@@ -41,54 +41,63 @@ def load_corners(archive, cameras, board_height=None,
             for key in frame_numbers:
                 camera.usable_frames[key] = i_key
                 i_key += 1
-        archive.files.remove(FRAME_NUMBERS)
+        if verbose:
+            print("Loaded {:d} usable frame numbers for all cameras in legacy format.".format(len(frame_numbers)))
 
-    archive.files.sort()
-    for array_name in archive.files:
+    for array_name, value in archive.items():
         if array_name.startswith(IMAGE_POINTS):
             ix_vid = int(array_name[len(IMAGE_POINTS):])
-            cameras[ix_vid].imgpoints = archive[array_name]
-        elif array_name.startswith(FRAME_NUMBERS):
+            cameras[ix_vid].imgpoints = value
+            if verbose:
+                print("Loaded {:d} image point sets for camera {:d}".format(len(value), ix_vid), flush=True)
+        elif array_name.startswith(FRAME_NUMBERS) and not array_name == FRAME_NUMBERS:
             ix_vid = int(array_name[len(FRAME_NUMBERS):])
             cameras[ix_vid].usable_frames = {}
             i_key = 0
-            for key in archive[array_name]:
+            for key in value:
                 cameras[ix_vid].usable_frames[key] = i_key
                 i_key += 1
+            if verbose:
+                print("Loaded {:d} usable frame numbers for camera {:d}".format(len(value), ix_vid), flush=True)
         elif array_name.startswith(POSES):
             ix_vid = int(array_name[len(POSES):])
             # process poses
-            cameras[ix_vid].poses = [Pose(T) for T in archive[array_name]]
+            cameras[ix_vid].poses = [Pose(T) for T in value]
+            if verbose:
+                print("Loaded {:d} poses for camera {:d}".format(len(value),ix_vid), flush=True)
 
     return object_point_set
 
 
-def save_corners(file_dict, path, cameras, object_point_set, verbose=True):
+def save_corners(archive, path, cameras, object_point_set, verbose=True):
     if verbose:
         print("Saving corners to {0:s}".format(path))
     for camera in cameras:
-        file_dict[IMAGE_POINTS + str(camera.index)] = camera.imgpoints
-        file_dict[FRAME_NUMBERS + str(camera.index)] = list(camera.usable_frames.keys())
+        archive[IMAGE_POINTS + str(camera.index)] = camera.imgpoints
+        archive[FRAME_NUMBERS + str(camera.index)] = list(camera.usable_frames.keys())
         if len(camera.poses) > 0:
-            file_dict[POSES + str(camera.index)] = np.array([pose.T for pose in camera.poses])
+            archive[POSES + str(camera.index)] = np.array([pose.T for pose in camera.poses])
 
-    file_dict[OBJECT_POINT_SET] = object_point_set
-    np.savez_compressed(path, **file_dict)
+    archive[OBJECT_POINT_SET] = object_point_set
+    np.savez_compressed(path, **archive)
 
 
-def load_calibration_intervals(file_dict, cameras, verbose=True):
+def load_calibration_intervals(archive, cameras, verbose=True):
     if verbose:
         print("Loading calibration frame intervals from archive.")
-    ranges = file_dict[CALIBRATION_INTERVALS]
-    if len(cameras) != ranges.shape[0]:
-        raise ValueError("Need to have the same number of rows in the frame_ranges array as the number of cameras.")
-    ix_cam = 0
-    for camera in cameras:
-        camera.calibration_interval = tuple(ranges[ix_cam])
-        ix_cam +=1
+    if CALIBRATION_INTERVALS in archive:
+        ranges = archive[CALIBRATION_INTERVALS]
+        if len(cameras) != ranges.shape[0]:
+            raise ValueError("Need to have the same number of rows in the frame_ranges array as the number of cameras.")
+        ix_cam = 0
+        for camera in cameras:
+            camera.calibration_interval = tuple(ranges[ix_cam])
+            ix_cam +=1
+    else:
+        raise ValueError("No calibration intervals found in the provided archive.")
 
 
-def save_calibration_intervals(file_dict, path, cameras, verbose=True):
+def save_calibration_intervals(archive, path, cameras, verbose=True):
     if verbose:
         print("Saving calibration intervals to {0:s}".format(path))
     ranges = []
@@ -97,8 +106,8 @@ def save_calibration_intervals(file_dict, path, cameras, verbose=True):
             raise ValueError("Expecting all cameras to have valid calibration frame ranges. Got: None")
         ranges.append(camera.calibration_interval)
     ranges = np.array(ranges)
-    file_dict[CALIBRATION_INTERVALS] = ranges
-    np.savez_compressed(path, **file_dict)
+    archive[CALIBRATION_INTERVALS] = ranges
+    np.savez_compressed(path, **archive)
 
 
 def load_opencv_stereo_calibration(path):
