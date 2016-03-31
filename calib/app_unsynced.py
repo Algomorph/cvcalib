@@ -162,7 +162,6 @@ class ApplicationUnsynced(Application):
                 sample_interval_frames //= 2
 
             # ** find exact start & end of streak **
-            i_frame = calibration_start
             if verbose:
                 print("Seeking first calibration frame of {0:s}...".format(camera.name))
 
@@ -194,8 +193,8 @@ class ApplicationUnsynced(Application):
         if len(streak) > len(longest_streak):
             longest_streak = streak
             if verbose:
-                print("Longest consecutive streak with calibration board "
-                      + "staying still relative to camera: {:d}".format(streak[1] - streak[0]))
+                print("Longest consecutive streak with calibration board " +
+                      "staying still relative to camera: {:d}".format(streak[1] - streak[0]))
         return [0, 0], longest_streak
 
     def run_capture(self, verbose=True):
@@ -304,7 +303,7 @@ class ApplicationUnsynced(Application):
                     ix_target_streak = 0
                     while not found and ix_target_streak < len(target_streaks):
                         target_streak = target_streaks[ix_target_streak]
-                        if __aux_streak_within(source_streak, target_streak):
+                        if ApplicationUnsynced.__aux_streak_within(source_streak, target_streak):
                             overlaps.append((source_streak, target_streak))
                         ix_target_streak += 1
                 self.videos[i_vid].still_streak_overlaps[j_vid] = overlaps
