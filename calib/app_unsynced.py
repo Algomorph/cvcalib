@@ -506,7 +506,13 @@ class ApplicationUnsynced(Application):
                 offset_sample_counts[ix_offset] = offset_sample_count
                 offset_mean_pose_diffs[ix_offset] = offset_cumulative_pose_diffs / offset_cumulative_pose_counts
                 offset_pt_rms[ix_offset] = math.sqrt(offset_cumulative_pt_counts / offset_cumulative_pt_counts)
-
+            np.savez_compressed(os.path.join(self.args.folder,"tc_data.npz"),
+                                sample_counts=offset_sample_counts,
+                                mean_pose_diffs=offset_mean_pose_diffs,
+                                point_rms=offset_pt_rms,
+                                flag_array=flag_array,
+                                pose_diff_mat=pose_differences,
+                                point_rms_mat=projection_rms_mat)
 
 
 

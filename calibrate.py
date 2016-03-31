@@ -272,6 +272,7 @@ class Setting(Enum):
             parser.set_defaults(**defaults)
         return parser
 
+
 def main():
     Setting.generate_missing_shorthands()
     defaults = Setting.generate_defaults_dict()
@@ -308,7 +309,7 @@ def main():
     if args.unsynced:
         app = ApplicationUnsynced(args)
         app.gather_frame_data()
-        # print(app.calibrate_time_variance())
+        app.calibrate_time_reprojection_full()
     else:
         app = ApplicationSynced(args)
         app.gather_frame_data()
