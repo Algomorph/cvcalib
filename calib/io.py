@@ -3,7 +3,7 @@ Created on Jan 1, 2016
 
 @author: Gregory Kramida
 """
-from lxml import etree  # @UnresolvedImport
+from lxml import etree
 import numpy as np
 from calib import data, camera, geom, rig
 from calib.camera import Pose
@@ -12,12 +12,14 @@ IMAGE_POINTS = "image_points"
 FRAME_NUMBERS = "frame_numbers"
 OBJECT_POINT_SET = "object_point_set"
 POSES = "poses"
-FRAME_RANGES = "frame_ranges"
+CALIBRATION_INTERVALS = "calibration_intervals"
 
 '''
 TODO: need a separate set of load/save functions for frame_numbers,
 remove these from here OR rename to load_frame_data
 '''
+
+
 def load_corners(archive, cameras, board_height=None,
                  board_width=None, board_square_size=None,
                  verbose=True):
@@ -64,7 +66,6 @@ def load_corners(archive, cameras, board_height=None,
 def save_corners(file_dict, path, cameras, object_point_set, verbose=True):
     if verbose:
         print("Saving corners to {0:s}".format(path))
-    file_dict = {}
     for camera in cameras:
         file_dict[IMAGE_POINTS + str(camera.index)] = camera.imgpoints
         file_dict[FRAME_NUMBERS + str(camera.index)] = list(camera.usable_frames.keys())
@@ -74,10 +75,11 @@ def save_corners(file_dict, path, cameras, object_point_set, verbose=True):
     file_dict[OBJECT_POINT_SET] = object_point_set
     np.savez_compressed(path, **file_dict)
 
+
 def load_calibration_intervals(file_dict, cameras, verbose=True):
     if verbose:
         print("Loading calibration frame intervals from archive.")
-    ranges = file_dict[FRAME_RANGES]
+    ranges = file_dict[CALIBRATION_INTERVALS]
     if len(cameras) != ranges.shape[0]:
         raise ValueError("Need to have the same number of rows in the frame_ranges array as the number of cameras.")
     ix_cam = 0
@@ -95,14 +97,15 @@ def save_calibration_intervals(file_dict, path, cameras, verbose=True):
             raise ValueError("Expecting all cameras to have valid calibration frame ranges. Got: None")
         ranges.append(camera.calibration_interval)
     ranges = np.array(ranges)
-    file_dict[FRAME_RANGES] = ranges
+    file_dict[CALIBRATION_INTERVALS] = ranges
     np.savez_compressed(path, **file_dict)
+
 
 def load_opencv_stereo_calibration(path):
     """
     Load stereo calibration information from xml file
-    @type video_path: str
-    @param video_path: video_path to xml file
+    @type path: str
+    @param path: video_path to xml file
     @return stereo calibration: loaded from the given xml file
     @rtype calib.data.StereoRig
     """
@@ -114,8 +117,8 @@ def load_opencv_stereo_calibration(path):
 def load_opencv_single_calibration(path):
     """
     Load single-camera calibration information from xml file
-    @type video_path: str
-    @param video_path: video_path to xml file
+    @type path: str
+    @param path: video_path to xml file
     @return calibration info: loaded from the given xml file
     @rtype calib.data.CameraIntrinsics
     """
@@ -127,8 +130,8 @@ def load_opencv_single_calibration(path):
 def load_opencv_calibration(path):
     """
     Load any kind (stereo or single) of calibration result from the file
-    @type video_path: str
-    @param video_path: video_path to xml file
+    @type path: str
+    @param path: path to xml file
     @return calibration info: loaded from the given xml file
     @rtype calib.data.CameraIntrinsics | calib.data.StereoRig
     """
@@ -138,9 +141,9 @@ def load_opencv_calibration(path):
     modules = [data, camera, rig]
     object_class = None
     for module in modules:
-        if (hasattr(module, class_name)):
+        if hasattr(module, class_name):
             object_class = getattr(module, class_name)
-    if (object_class is None):
+    if object_class is None:
         raise ValueError("Unexpected calibration format in file {0:s}".format(path))
     calib_info = object_class.from_xml(first_elem)
     return calib_info

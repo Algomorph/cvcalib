@@ -1,11 +1,14 @@
 <component name="ProjectDictionaryState">
   <dictionary name="algomorph">
     <words>
+      <w>calib</w>
       <w>coeffs</w>
       <w>extrinsics</w>
       <w>fisheye</w>
       <w>intrinsics</w>
+      <w>kramida</w>
       <w>laplacian</w>
+      <w>opencv</w>
       <w>precalibrate</w>
       <w>reprojection</w>
       <w>unsynced</w>

@@ -46,14 +46,14 @@ class ApplicationSynced(Application):
             if args.input_calibration != None:
                 full_path = osp.join(args.folder, args.input_calibration[0])
                 initial_calibration = cio.load_opencv_calibration(full_path)
-                if (type(initial_calibration) == StereoRig):
+                if  type(initial_calibration) == StereoRig:
                     raise ValueError("Got only one camera input, \'{0:s}\', but a stereo calibration " +
                                      "input file '{0:s}'. Please provide a single camera's intrinsics."
                                      .format(self.camera.name, args.input_calibration))
-                elif (type(initial_calibration) == Camera):
+                elif type(initial_calibration) == Camera:
                     self.camera = Camera(os.path.join(args.folder, args.videos[0]), 0,
                                          intrinsics=initial_calibration.intrinsics)
-                elif (type(initial_calibration) == CameraIntrinsics):
+                elif type(initial_calibration) == CameraIntrinsics:
                     self.camera = Camera(os.path.join(args.folder, args.videos[0]), 0,
                                          intrinsics=initial_calibration)
                 else:

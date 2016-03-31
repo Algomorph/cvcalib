@@ -118,7 +118,7 @@ class ApplicationUnsynced(Application):
                     miss_count = 0
                 else:
                     miss_count += 1
-                    if (miss_count > max_miss_count):
+                    if miss_count > max_miss_count:
                         # too many frames w/o calibration board, highly unlikely those are all bad frames,
                         # go to finer scan
                         frame_range[1] = i_frame
