@@ -378,24 +378,28 @@ class ApplicationUnsynced(Application):
                              fix_intrinsics=True)
             target_cam.extrinsics = rig.extrinsics
 
-    def calibrate_time_reprojection_full(self, sample_count = 100, verbose=True):
+    def calibrate_time_reprojection_full(self, sample_count=100, verbose=True):
         max_offset = self.args.max_frame_offset
         source_camera = self.cameras[0]
         sampling_interval = len(source_camera.usable_frames) // sample_count
         start = (len(source_camera.usable_frames) % sample_count) // 2
         sample_frame_numbers = []
         source_poses = []
-        usable_frames = source_camera.usable_frames.keys()
+        usable_frames = list(source_camera.usable_frames.keys())
 
-        for i_usable_frame in range(start,len(usable_frames), sampling_interval):
+        for i_usable_frame in range(start, len(usable_frames)-start-1, sampling_interval):
             usable_frame_num = usable_frames[i_usable_frame]
             sample_frame_numbers.append(usable_frame_num)
             source_pose = source_camera.poses[source_camera.usable_frames[usable_frame_num]]
             source_poses.append(source_pose)
-
-        print("Sample count: {:d}".format(len(sample_frame_numbers)))
+        if verbose:
+            print("Sample count: {:d}".format(len(sample_frame_numbers)))
+            print("Sample frames: {:s}".format(str(sample_frame_numbers)))
 
         for target_camera in self.cameras[1:]:
+            if verbose:
+                print("Processing time shift between cameras '{:s}' and '{:s}'."
+                      .format(source_camera.name, target_camera.name))
             possible_offset_count = max_offset * 2 + 1
 
             # flag_array to remember unfilled entries
@@ -412,6 +416,10 @@ class ApplicationUnsynced(Application):
 
             # traverse all possible offsets
             for offset in offset_range:
+
+                if verbose:
+                    print("Processing offset {:d}. ".format(offset), end="")
+
                 ix_offset = offset+max_offset
                 offset_sample_count = 0
                 offset_cumulative_pt_counts = 0
@@ -466,7 +474,7 @@ class ApplicationUnsynced(Application):
                                 [R|t]_(t,i) =?= [R|t]_(t,i)'
                                 '''
                                 target_pose = target_camera.poses[target_camera.usable_frames[target_frame]]
-                                est_target_pose = Pose(transform.dot(source_poses[i_sample].T))
+                                est_target_pose = Pose(transform.dot(source_poses[i_sample].T_inv))
                                 cumulative_pose_error += est_target_pose.diff(target_pose)
                                 '''
                                 Secondly, we can use the transform applied to source camera pose and the target
@@ -493,20 +501,28 @@ class ApplicationUnsynced(Application):
                                 comparison_count += 1
                                 point_comparison_count += len(self.board_object_corner_set)
 
-                        mean_pose_error = cumulative_pose_error / comparison_count
-                        root_mean_square_pt_error = math.sqrt(cumulative_squared_point_error / point_comparison_count)
-                        pose_differences[ix_offset, j_sample] = mean_pose_error
-                        projection_rms_mat[ix_offset, j_sample] = root_mean_square_pt_error
+                        if comparison_count > 0:
+                            mean_pose_error = cumulative_pose_error / comparison_count
+                            root_mean_square_pt_error = math.sqrt(cumulative_squared_point_error /
+                                                                  point_comparison_count)
+                            pose_differences[ix_offset, j_sample] = mean_pose_error
+                            projection_rms_mat[ix_offset, j_sample] = root_mean_square_pt_error
 
-                        offset_cumulative_pose_diffs += cumulative_pose_error
-                        offset_cumulative_pose_counts += comparison_count
-                        offset_cumulative_pt_counts += point_comparison_count
-                        offset_cumulative_pt_rms += cumulative_squared_point_error
-
+                            offset_cumulative_pose_diffs += cumulative_pose_error
+                            offset_cumulative_pose_counts += comparison_count
+                            offset_cumulative_pt_counts += point_comparison_count
+                            offset_cumulative_pt_rms += cumulative_squared_point_error
+                if verbose:
+                    print("Total sample frame count: {:d} ".format(offset_sample_count), end="")
                 offset_sample_counts[ix_offset] = offset_sample_count
-                offset_mean_pose_diffs[ix_offset] = offset_cumulative_pose_diffs / offset_cumulative_pose_counts
-                offset_pt_rms[ix_offset] = math.sqrt(offset_cumulative_pt_counts / offset_cumulative_pt_counts)
-            np.savez_compressed(os.path.join(self.args.folder,"tc_data.npz"),
+                if offset_cumulative_pose_counts > 0:
+                    offset_mean_pose_diffs[ix_offset] = offset_cumulative_pose_diffs / offset_cumulative_pose_counts
+                    rms = math.sqrt(offset_cumulative_pt_rms / offset_cumulative_pt_counts)
+                    offset_pt_rms[ix_offset] = rms
+                    print("Root mean squared error: {:.3f}".format(rms), end="")
+                if verbose:
+                    print("\n", end="")
+            np.savez_compressed(os.path.join(self.args.folder, target_camera.name + "_tc_data.npz"),
                                 sample_counts=offset_sample_counts,
                                 mean_pose_diffs=offset_mean_pose_diffs,
                                 point_rms=offset_pt_rms,
@@ -519,7 +535,16 @@ class ApplicationUnsynced(Application):
     def gather_frame_data(self, verbose=True):
         if self.args.load_corners:
             self.board_object_corner_set = cio.load_corners(self.aux_data_file, self.cameras,
-                                                            verbose=verbose)[0]
+                                                            verbose=verbose)
+            if verbose:
+                for camera in self.cameras:
+                    object_points = self.board_object_corner_set
+                    cum_rms = 0.0
+                    for i_frame in range(0, len(camera.poses)):
+                        rms = camera.find_reprojection_error(i_frame, object_points)
+                        cum_rms += rms
+                    print("AVE RMS for camera {:d} : {:f}".format(camera.index, cum_rms / len(camera.poses)))
+
         else:
             if self.args.load_calibration_intervals:
                 cio.load_calibration_intervals(self.aux_data_file, self.cameras, verbose=verbose)

@@ -23,7 +23,7 @@ import cv2
 from calib.data import CameraIntrinsics, CameraExtrinsics
 import numpy as np
 from lxml import etree
-
+import math
 
 def homogenize_4vec(vec):
     return np.array([vec[0] / vec[3], vec[1] / vec[3], vec[2] / vec[3], 1.0]).T
@@ -248,9 +248,21 @@ class Camera(object):
             tvec_inv = -R_inv.dot(tvec)
             T_inv = np.vstack((np.append(R_inv, tvec_inv, 1), [0, 0, 0, 1]))
             self.poses.append(Pose(T, T_inv, rvec, tvec))
+
         else:
             self.poses.append(None)
         return retval
+
+    def find_reprojection_error(self, i_frame, object_points):
+        rvec = self.poses[i_frame].rvec
+        tvec = self.poses[i_frame].tvec
+        img_pts = self.imgpoints[i_frame]
+
+        est_pts = cv2.projectPoints(object_points, rvec, tvec,
+                                    self.intrinsics.intrinsic_mat, self.intrinsics.distortion_coeffs)[0]
+
+        rms = math.sqrt(((img_pts - est_pts) ** 2).sum() / len(object_points))
+        return rms
 
     def add_corners(self, i_frame, criteria_subpix, frame_folder_path, save_image):
         grey_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)

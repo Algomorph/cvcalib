@@ -53,6 +53,7 @@ def load_corners(archive, cameras, board_height=None,
         elif array_name.startswith(FRAME_NUMBERS) and not array_name == FRAME_NUMBERS:
             ix_vid = int(array_name[len(FRAME_NUMBERS):])
             cameras[ix_vid].usable_frames = {}
+
             i_key = 0
             for key in value:
                 cameras[ix_vid].usable_frames[key] = i_key
