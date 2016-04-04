@@ -185,12 +185,14 @@ class ApplicationUnsynced(Application):
             # traverse backward from inexact start
             if verbose:
                 print("Seeking first calibration frame of {0:s}...".format(camera.name))
-            calibration_start = self.__seek_calib_limit(camera, [calibration_start, rough_seek_range[0]], verbose)
+            calibration_start = self.__seek_calib_limit(camera, [calibration_start, rough_seek_range[0]],
+                                                        max_miss_count=self.args.seek_miss_count, verbose=verbose)
 
             # traverse forward from inexact end
             if verbose:
                 print("Seeking last calibration frame of {0:s}...".format(camera.name))
-            calibration_end = self.__seek_calib_limit(camera, [calibration_end, rough_seek_range[1]], verbose)
+            calibration_end = self.__seek_calib_limit(camera, [calibration_end, rough_seek_range[1]],
+                                                      max_miss_count=self.args.seek_miss_count, verbose=verbose)
 
             camera.calibration_interval = (calibration_start, calibration_end)
             if verbose:
@@ -384,6 +386,9 @@ class ApplicationUnsynced(Application):
         sampling_interval = len(source_camera.usable_frames) // sample_count
         start = (len(source_camera.usable_frames) % sample_count) // 2
         sample_frame_numbers = []
+
+        # source poses array will be parralel to sample_frame_numbers, i.e. source_poses[i] is the pose
+        # of the source camera at the frame position sample_frame_numbers[i] in the original source video
         source_poses = []
         usable_frames = list(source_camera.usable_frames.keys())
 
@@ -394,12 +399,15 @@ class ApplicationUnsynced(Application):
             source_poses.append(source_pose)
         if verbose:
             print("Sample count: {:d}".format(len(sample_frame_numbers)))
-            print("Sample frames: {:s}".format(str(sample_frame_numbers)))
+            # DEBUG LINE
+            # print("Sample frames: {:s}".format(str(sample_frame_numbers)))
 
         for target_camera in self.cameras[1:]:
             if verbose:
+                print("========================================================")
                 print("Processing time shift between cameras '{:s}' and '{:s}'."
                       .format(source_camera.name, target_camera.name))
+                print("========================================================")
             possible_offset_count = max_offset * 2 + 1
 
             # flag_array to remember unfilled entries
@@ -412,7 +420,9 @@ class ApplicationUnsynced(Application):
             offset_mean_pose_diffs = np.zeros((possible_offset_count), dtype=np.float64)
             offset_pt_rms = np.zeros((possible_offset_count), dtype=np.float64)
 
-            offset_range = range(-max_offset, max_offset + 1)
+            # DEBUG LINE VERSION:
+            offset_range = range(1583, 1783)
+            # offset_range = range(-max_offset, max_offset + 1)
 
             # traverse all possible offsets
             for offset in offset_range:
@@ -421,37 +431,45 @@ class ApplicationUnsynced(Application):
                     print("Processing offset {:d}. ".format(offset), end="")
 
                 ix_offset = offset+max_offset
+
+                # per-offset cumulative things
                 offset_sample_count = 0
                 offset_cumulative_pt_counts = 0
                 offset_cumulative_pose_counts = 0
-                offset_cumulative_pose_diffs = 0.0
-                offset_cumulative_pt_rms = 0.0
+                offset_cumulative_pose_error = 0.0
+                offset_cumulative_pt_squared_error = 0.0
 
                 # for each offset, traverse all frame samples
                 for j_sample in range(0, len(sample_frame_numbers)):
                     source_frame = sample_frame_numbers[j_sample]
-                    target_frame = source_frame + offset
-                    if target_frame in target_camera.usable_frames:
+                    j_target_frame = source_frame + offset
+                    if j_target_frame in target_camera.usable_frames:
                         flag_array[ix_offset, j_sample] = True
                         source_pose = source_poses[j_sample]
-                        target_pose = target_camera.poses[target_camera.usable_frames[target_frame]]
+                        target_pose = target_camera.poses[target_camera.usable_frames[j_target_frame]]
 
                         # Transform between this camera and the other one.
                         # Future notation:
                         # T(x, y, f, o) denotes estimated transform from camera x at frame f
                         #   to camera y at frame f + o
-                        transform = target_pose.T.dot(np.linalg.inv(source_pose.T))
+                        transform = target_pose.T.dot(source_pose.T_inv)
+
+                        # DEBUG BLOCK
+                        est_target_pose = Pose(transform.dot(source_pose.T))
+
+                        # END DEBUG BLOCK
+
                         offset_sample_count += 1
 
                         cumulative_pose_error = 0.0
                         cumulative_squared_point_error = 0.0
-                        comparison_count = 0
-                        point_comparison_count = 0
+                        pose_count = 0
+                        point_count = 0
                         # for each sample, traverse all other samples
                         for i_sample in range(0, len(sample_frame_numbers)):
                             source_frame = sample_frame_numbers[i_sample]
-                            target_frame = source_frame + offset
-                            if i_sample != j_sample and target_frame in target_camera.usable_frames:
+                            i_target_frame = source_frame + offset
+                            if i_sample != j_sample and i_target_frame in target_camera.usable_frames:
                                 '''
                                 use the same estimated transform between source & target cameras for specific offset
                                 on other frame samples
@@ -473,8 +491,8 @@ class ApplicationUnsynced(Application):
                                 [R|t]_(t,i)' = T(s,t,j,k).dot([R|t]_(s,i+k))
                                 [R|t]_(t,i) =?= [R|t]_(t,i)'
                                 '''
-                                target_pose = target_camera.poses[target_camera.usable_frames[target_frame]]
-                                est_target_pose = Pose(transform.dot(source_poses[i_sample].T_inv))
+                                target_pose = target_camera.poses[target_camera.usable_frames[i_target_frame]]
+                                est_target_pose = Pose(transform.dot(source_poses[i_sample].T))
                                 cumulative_pose_error += est_target_pose.diff(target_pose)
                                 '''
                                 Secondly, we can use the transform applied to source camera pose and the target
@@ -488,7 +506,7 @@ class ApplicationUnsynced(Application):
                                 Note: X_im(t,i) computation above is for reference only, no need to reproject as
                                  we already have empirical observations of the image points
                                 '''
-                                target_points = target_camera.imgpoints[target_camera.usable_frames[target_frame]]
+                                target_points = target_camera.imgpoints[target_camera.usable_frames[i_target_frame]]
                                 est_target_points = \
                                     cv2.projectPoints(objectPoints=self.board_object_corner_set,
                                                       rvec=est_target_pose.rvec,
@@ -498,26 +516,26 @@ class ApplicationUnsynced(Application):
 
                                 # np.linalg.norm(target_points - est_target_points, axis=2).flatten()
                                 cumulative_squared_point_error += ((target_points - est_target_points)**2).sum()
-                                comparison_count += 1
-                                point_comparison_count += len(self.board_object_corner_set)
+                                pose_count += 1
+                                point_count += len(self.board_object_corner_set)
 
-                        if comparison_count > 0:
-                            mean_pose_error = cumulative_pose_error / comparison_count
+                        if pose_count > 0:
+                            mean_pose_error = cumulative_pose_error / pose_count
                             root_mean_square_pt_error = math.sqrt(cumulative_squared_point_error /
-                                                                  point_comparison_count)
+                                                                  point_count)
                             pose_differences[ix_offset, j_sample] = mean_pose_error
                             projection_rms_mat[ix_offset, j_sample] = root_mean_square_pt_error
 
-                            offset_cumulative_pose_diffs += cumulative_pose_error
-                            offset_cumulative_pose_counts += comparison_count
-                            offset_cumulative_pt_counts += point_comparison_count
-                            offset_cumulative_pt_rms += cumulative_squared_point_error
+                            offset_cumulative_pose_error += cumulative_pose_error
+                            offset_cumulative_pose_counts += pose_count
+                            offset_cumulative_pt_counts += point_count
+                            offset_cumulative_pt_squared_error += cumulative_squared_point_error
                 if verbose:
                     print("Total sample frame count: {:d} ".format(offset_sample_count), end="")
                 offset_sample_counts[ix_offset] = offset_sample_count
                 if offset_cumulative_pose_counts > 0:
-                    offset_mean_pose_diffs[ix_offset] = offset_cumulative_pose_diffs / offset_cumulative_pose_counts
-                    rms = math.sqrt(offset_cumulative_pt_rms / offset_cumulative_pt_counts)
+                    offset_mean_pose_diffs[ix_offset] = offset_cumulative_pose_error / offset_cumulative_pose_counts
+                    rms = math.sqrt(offset_cumulative_pt_squared_error / offset_cumulative_pt_counts)
                     offset_pt_rms[ix_offset] = rms
                     print("Root mean squared error: {:.3f}".format(rms), end="")
                 if verbose:

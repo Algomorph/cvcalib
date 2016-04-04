@@ -213,6 +213,7 @@ class Setting(Enum):
     max_frame_offset = Argument(100, '?', int, 'store',
                                 "Used for unsynced calibration only: maximum delay, in frames, between videos.",
                                 console_only=False, required=False)
+    seek_miss_count = Argument(5,1,int,arg_help="Increase sensitivty and seek time of calibration intervals")
     # ============== VERBOSITY CONTROLS   =============================================================================#
     skip_printing_output = Argument(False, '?', 'bool_flag', 'store_true',
                                     "Skip printing output.",
