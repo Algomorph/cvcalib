@@ -213,7 +213,8 @@ class Setting(Enum):
     max_frame_offset = Argument(100, '?', int, 'store',
                                 "Used for unsynced calibration only: maximum delay, in frames, between videos.",
                                 console_only=False, required=False)
-    seek_miss_count = Argument(5,1,int,arg_help="Increase sensitivty and seek time of calibration intervals")
+    seek_miss_count = Argument(5,'?',int,arg_help="Increase sensitivty and seek time of calibration intervals")
+    use_all_frames = Argument(False, '?', 'bool_flag', 'store_true', 'Use all frames (skips calibration seeking)')
     # ============== VERBOSITY CONTROLS   =============================================================================#
     skip_printing_output = Argument(False, '?', 'bool_flag', 'store_true',
                                     "Skip printing output.",
@@ -272,6 +273,30 @@ class Setting(Enum):
         if not console_only:
             parser.set_defaults(**defaults)
         return parser
+
+
+def load_app_from_config(path):
+    """
+    Generate app directly from config file, bypassing command line settings (useful for testing in ipython)
+    """
+    Setting.generate_missing_shorthands()
+    defaults = Setting.generate_defaults_dict()
+    if osp.isfile(path):
+        file_stream = open(path, "r", encoding="utf-8")
+        config_defaults = load(file_stream, Loader=Loader)
+        file_stream.close()
+        for key, value in config_defaults.items():
+            defaults[key] = value
+    else:
+        raise ValueError("Settings file not found at: {0:s}".format(path))
+    args = ap.Namespace()
+    for key, value in defaults.items():
+        args.__dict__[key] = value
+    if args.unsynced:
+        app = ApplicationUnsynced(args)
+    else:
+        app = ApplicationSynced(args)
+    return app
 
 
 def main():

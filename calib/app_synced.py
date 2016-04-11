@@ -46,7 +46,7 @@ class ApplicationSynced(Application):
             if args.input_calibration != None:
                 full_path = osp.join(args.folder, args.input_calibration[0])
                 initial_calibration = cio.load_opencv_calibration(full_path)
-                if  type(initial_calibration) == StereoRig:
+                if type(initial_calibration) == StereoRig:
                     raise ValueError("Got only one camera input, \'{0:s}\', but a stereo calibration " +
                                      "input file '{0:s}'. Please provide a single camera's intrinsics."
                                      .format(self.camera.name, args.input_calibration))
@@ -77,6 +77,7 @@ class ApplicationSynced(Application):
                                         Camera(os.path.join(args.folder, args.videos[1]), 1,
                                                intrinsics=self.rig.cameras[1].intrinsics)]
                 else:
+                    self.rig = StereoRig([None, None])
                     if len(args.input_calibration) < 2:
                         raise ValueError("Input calibration parameters need to have two" +
                                          " sets of intrinsics for stereo calibration." +
@@ -84,19 +85,21 @@ class ApplicationSynced(Application):
                                          "files with intrinsics or a single stereo rig file as argument.")
                     full_path = osp.join(args.folder, args.input_calibration[1])
                     initial_calibration2 = cio.load_opencv_calibration(full_path)
-                    if type(initial_calibration) == CameraIntrinsics:
-                        self.rig.cameras = [Camera(os.path.join(args.folder, args.videos[0]), 0,
-                                                   intrinsics=initial_calibration.intrinsics),
-                                            Camera(os.path.join(args.folder, args.videos[1]), 1,
-                                                   intrinsics=initial_calibration2.intrinsics)]
-                    elif type(initial_calibration) == CameraIntrinsics:
-                        self.rig.cameras = [Camera(os.path.join(args.folder, args.videos[0]), 0,
-                                                   intrinsics=initial_calibration),
-                                            Camera(os.path.join(args.folder, args.videos[1]), 1,
-                                                   intrinsics=initial_calibration2)]
-                    else:
-                        raise TypeError("(:s) Unsupported calibration type: {:s}"
-                                        .format(ApplicationSynced.__name__, str(type(initial_calibration))))
+                    init_c = [initial_calibration, initial_calibration2]
+                    ix_calib = 0
+                    for calib in init_c:
+                        if type(initial_calibration) == CameraIntrinsics:
+                            self.rig.cameras[ix_calib] = \
+                                Camera(os.path.join(args.folder, args.videos[ix_calib]), ix_calib,
+                                        intrinsics=initial_calibration)
+                        elif type(initial_calibration) == Camera:
+                            self.rig.cameras[ix_calib] = \
+                                Camera(os.path.join(args.folder, args.videos[ix_calib]), ix_calib,
+                                        intrinsics=initial_calibration)
+                        else:
+                            raise TypeError("(:s) Unsupported calibration type: {:s}"
+                                            .format(ApplicationSynced.__name__, str(type(initial_calibration))))
+                        ix_calib += 1
 
             else:
                 self.rig = StereoRig([Camera(os.path.join(args.folder, args.videos[0]), 0),
@@ -211,7 +214,7 @@ class ApplicationSynced(Application):
             for i_fn in range(len(frame_number_sets[0])):
                 fn0 = frame_number_sets[0][i_fn]
                 fn1 = frame_number_sets[1][i_fn]
-                if (fn0 != fn1):
+                if fn0 != fn1:
                     raise ValueError("There are some non-paired frames in folder '{0:s}'." +
                                      " Check frame {1:d} for camera {2:s} and frame {3:d} for camera {4:s}."
                                      .format(self.full_frame_folder_path,
@@ -225,7 +228,7 @@ class ApplicationSynced(Application):
         return usable_frame_ct
 
     def add_corners_for_all(self, usable_frame_ct, report_interval, i_frame):
-        if (usable_frame_ct % report_interval == 0):
+        if usable_frame_ct % report_interval == 0:
             print("Usable frames: {0:d} ({1:.3%})"
                   .format(usable_frame_ct, float(usable_frame_ct) / (i_frame + 1)))
 
@@ -382,7 +385,7 @@ class ApplicationSynced(Application):
                                     self.args.precalibrate_solo,
                                     self.args.stereo_only,
                                     self.args.max_iterations,
-                                    self.args.input_calibration != None)
+                                    self.args.input_calibration is not None)
             if self.args.preview:
                 l_im = cv2.imread(osp.join(self.args.folder, self.args.preview_files[0]))
                 r_im = cv2.imread(osp.join(self.args.folder, self.args.preview_files[1]))

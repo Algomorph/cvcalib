@@ -11,6 +11,7 @@
       <w>opencv</w>
       <w>precalibrate</w>
       <w>reprojection</w>
+      <w>undistort</w>
       <w>unsynced</w>
     </words>
   </dictionary>

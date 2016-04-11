@@ -253,10 +253,10 @@ class Camera(object):
             self.poses.append(None)
         return retval
 
-    def find_reprojection_error(self, i_frame, object_points):
-        rvec = self.poses[i_frame].rvec
-        tvec = self.poses[i_frame].tvec
-        img_pts = self.imgpoints[i_frame]
+    def find_reprojection_error(self, i_usable_frame, object_points):
+        rvec = self.poses[i_usable_frame].rvec
+        tvec = self.poses[i_usable_frame].tvec
+        img_pts = self.imgpoints[i_usable_frame]
 
         est_pts = cv2.projectPoints(object_points, rvec, tvec,
                                     self.intrinsics.intrinsic_mat, self.intrinsics.distortion_coeffs)[0]

@@ -1,4 +1,4 @@
-'''
+"""
 Created on Nov 23, 2015
 @author: Gregory Kramida
 @licence: Apache v2
@@ -16,7 +16,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
 import numpy as np
 import time
@@ -46,6 +46,7 @@ def undistort_stereo(stereo_calib_info, test_im_left, test_im_right, size_factor
     rect_right = cv2.remap(test_im_right, map2x, map2y, cv2.INTER_LINEAR)
     return rect_left, rect_right
 
+
 def calibrate(camera, objpoints, flags, criteria, verbose = False):
     #OpenCV prefers the width x height as "Size" to height x width
     frame_dims = (camera.intrinsics.resolution[1],camera.intrinsics.resolution[0])
@@ -57,6 +58,7 @@ def calibrate(camera, objpoints, flags, criteria, verbose = False):
                         flags=flags,criteria = criteria)[0:3]
     end = time.time()
     camera.intrinsics.time = end - start
+
 
 def calibrate_wrapper(camera, objpoints,
                       use_rational_model = True,
@@ -76,6 +78,7 @@ def calibrate_wrapper(camera, objpoints,
         flags += cv2.CALIB_RATIONAL_MODEL
     calibrate(camera, objpoints, flags, criteria)
 
+
 def stereo_calibrate(rig,
                      objpoints,
                      use_fisheye = False,
@@ -92,26 +95,26 @@ def stereo_calibrate(rig,
     if fix_intrinsics:
         flags += cv2.CALIB_USE_INTRINSIC_GUESS
 
-    #shorten notation later in the code
+    # shorten notation later in the code
     cam0 = rig.cameras[0]
     cam1 = rig.cameras[1]
     intrinsics0 = rig.cameras[0].intrinsics
     intrinsics1 = rig.cameras[1].intrinsics
 
-    #OpenCV prefers the Width x Height as "Size" to Height x Width
-    frame_dims = (intrinsics0.resolution[1],intrinsics0.resolution[0])
+    # OpenCV prefers the Width x Height as "Size" to Height x Width
+    frame_dims = (intrinsics0.resolution[1], intrinsics0.resolution[0])
     
     criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, max_iters, 2.2204460492503131e-16)
     
-    if(stereo_only):
+    if stereo_only:
         flags = flags | cv2.CALIB_FIX_INTRINSIC
         precalibrate_solo = False
     
     if use_fisheye:
         d0 = intrinsics0.distortion_coeffs
         d1 = intrinsics1.distortion_coeffs
-        #this hack is necessary to get around incorrect argument handling for fisheye.stereoCalibrate
-        #function in OpenCV
+        # this hack is necessary to get around incorrect argument handling for fisheye.stereoCalibrate
+        # function in OpenCV
         obp2 = [np.transpose(pointset,(1,0,2)).astype(np.float64) for pointset in objpoints]
         lpts2 = [np.transpose(pointset,(1,0,2)).astype(np.float64) for pointset in intrinsics0.imgpoints]
         rpts2 = [np.transpose(pointset,(1,0,2)).astype(np.float64) for pointset in intrinsics1.imgpoints]
@@ -128,7 +131,7 @@ def stereo_calibrate(rig,
             flags += cv2.CALIB_ZERO_TANGENT_DIST
         if use_rational_model:
             flags += cv2.CALIB_RATIONAL_MODEL
-        if(precalibrate_solo):
+        if precalibrate_solo:
             calibrate(cam0, objpoints, flags, criteria)
             calibrate(cam1, objpoints, flags, criteria)
             flags = flags | cv2.CALIB_FIX_INTRINSIC

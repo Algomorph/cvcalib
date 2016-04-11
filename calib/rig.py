@@ -23,6 +23,7 @@ from lxml import etree
 from calib.camera import Camera
 from calib.data import CameraExtrinsics
 
+
 class StereoRig(object):
     _unindexed_instance_counter = 0
     '''

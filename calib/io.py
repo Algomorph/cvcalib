@@ -32,6 +32,10 @@ def load_corners(archive, cameras, board_height=None,
     else:
         object_point_set = geom.generate_object_points(board_height, board_width, board_square_size)
 
+    camera_by_name = {}
+    for camera in cameras:
+        camera_by_name[camera.name] = camera
+
     # legacy frame numbers
     if FRAME_NUMBERS in archive:
         frame_numbers = archive[FRAME_NUMBERS]
@@ -46,26 +50,26 @@ def load_corners(archive, cameras, board_height=None,
 
     for array_name, value in archive.items():
         if array_name.startswith(IMAGE_POINTS):
-            ix_vid = int(array_name[len(IMAGE_POINTS):])
-            cameras[ix_vid].imgpoints = value
+            vid_name = array_name[len(IMAGE_POINTS):]
+            camera_by_name[vid_name].imgpoints = value
             if verbose:
-                print("Loaded {:d} image point sets for camera {:d}".format(len(value), ix_vid), flush=True)
+                print("Loaded {:d} image point sets for camera {:s}".format(len(value), vid_name), flush=True)
         elif array_name.startswith(FRAME_NUMBERS) and not array_name == FRAME_NUMBERS:
-            ix_vid = int(array_name[len(FRAME_NUMBERS):])
-            cameras[ix_vid].usable_frames = {}
-
+            vid_name = array_name[len(FRAME_NUMBERS):]
+            camera = camera_by_name[vid_name]
+            camera.usable_frames = {}
             i_key = 0
             for key in value:
-                cameras[ix_vid].usable_frames[key] = i_key
+                camera.usable_frames[key] = i_key
                 i_key += 1
             if verbose:
-                print("Loaded {:d} usable frame numbers for camera {:d}".format(len(value), ix_vid), flush=True)
+                print("Loaded {:d} usable frame numbers for camera {:s}".format(len(value), vid_name), flush=True)
         elif array_name.startswith(POSES):
-            ix_vid = int(array_name[len(POSES):])
+            vid_name = array_name[len(POSES):]
             # process poses
-            cameras[ix_vid].poses = [Pose(T) for T in value]
+            camera_by_name[vid_name].poses = [Pose(T) for T in value]
             if verbose:
-                print("Loaded {:d} poses for camera {:d}".format(len(value),ix_vid), flush=True)
+                print("Loaded {:d} poses for camera {:s}".format(len(value),vid_name), flush=True)
 
     return object_point_set
 
@@ -74,10 +78,10 @@ def save_corners(archive, path, cameras, object_point_set, verbose=True):
     if verbose:
         print("Saving corners to {0:s}".format(path))
     for camera in cameras:
-        archive[IMAGE_POINTS + str(camera.index)] = camera.imgpoints
-        archive[FRAME_NUMBERS + str(camera.index)] = list(camera.usable_frames.keys())
+        archive[IMAGE_POINTS + str(camera.name)] = camera.imgpoints
+        archive[FRAME_NUMBERS + str(camera.name)] = list(camera.usable_frames.keys())
         if len(camera.poses) > 0:
-            archive[POSES + str(camera.index)] = np.array([pose.T for pose in camera.poses])
+            archive[POSES + str(camera.name)] = np.array([pose.T for pose in camera.poses])
 
     archive[OBJECT_POINT_SET] = object_point_set
     np.savez_compressed(path, **archive)
