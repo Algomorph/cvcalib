@@ -91,11 +91,11 @@ class ApplicationSynced(Application):
                         if type(initial_calibration) == CameraIntrinsics:
                             self.rig.cameras[ix_calib] = \
                                 Camera(os.path.join(args.folder, args.videos[ix_calib]), ix_calib,
-                                        intrinsics=initial_calibration)
+                                        intrinsics=calib)
                         elif type(initial_calibration) == Camera:
                             self.rig.cameras[ix_calib] = \
                                 Camera(os.path.join(args.folder, args.videos[ix_calib]), ix_calib,
-                                        intrinsics=initial_calibration)
+                                        intrinsics=calib.intrinsics)
                         else:
                             raise TypeError("(:s) Unsupported calibration type: {:s}"
                                             .format(ApplicationSynced.__name__, str(type(initial_calibration))))
