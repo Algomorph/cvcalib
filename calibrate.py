@@ -88,7 +88,8 @@ class Setting(Enum):
                              console_only=True, required=False)
     # ================= WORK FOLDER, INPUT & OUTPUT FILES =============================================================#
     folder = Argument("./", '?', str, 'store',
-                      "Path to root folder to work in",
+                      "Path to root folder to work in. If set to '*settings_file_location' and a "+
+                      " settings file is provided, will be set to the location of the settings file.",
                       console_only=False, required=False)
     videos = Argument(["left.mp4", "right.mp4"], '+', string_arr, required_length(1, 10),
                       "Input videos. May be multiple videos for unsynced mode, a stereo video tuple (left, right), " +
@@ -324,6 +325,7 @@ def main():
     parser = Setting.generate_parser(defaults, parents=[conf_parser])
     args = parser.parse_args(remaining_argv)
 
+    # save settings if prompted to do so
     if args.save_settings and args.settings_file:
         setting_dict = vars(args)
         file_stream = open(args.settings_file, "w", encoding="utf-8")
@@ -331,6 +333,11 @@ def main():
         del setting_dict[Setting.settings_file.name]
         dump(setting_dict, file_stream, Dumper=Dumper)
         file_stream.close()
+
+    # process "special" setting values
+    if args.folder == "*settings_file_location":
+        if args.settings_file and osp.isfile(args.settings_file):
+            args.folder = osp.dirname(args.settings_file)
 
     if args.unsynced:
         app = ApplicationUnsynced(args)
