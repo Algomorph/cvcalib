@@ -3,7 +3,7 @@
   <component name="ChangeListManager">
     <list default="true" id="f446202d-6896-4a03-a488-1362698c7d25" name="Default" comment="">
       <change type="MODIFICATION" beforePath="$PROJECT_DIR$/.idea/workspace.xml" afterPath="$PROJECT_DIR$/.idea/workspace.xml" />
-      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/calib/app_synced.py" afterPath="$PROJECT_DIR$/calib/app_synced.py" />
+      <change type="MODIFICATION" beforePath="$PROJECT_DIR$/calibrate.py" afterPath="$PROJECT_DIR$/calibrate.py" />
     </list>
     <ignored path="calib_video_opencv.iws" />
     <ignored path=".idea/workspace.xml" />
@@ -39,8 +39,18 @@
       <file leaf-file-name="app_synced.py" pinned="false" current-in-tab="true">
         <entry file="file://$PROJECT_DIR$/calib/app_synced.py">
           <provider selected="true" editor-type-id="text-editor">
-            <state relative-caret-position="317">
-              <caret line="87" column="42" selection-start-line="87" selection-start-column="42" selection-end-line="87" selection-end-column="42" />
+            <state relative-caret-position="281">
+              <caret line="46" column="28" selection-start-line="46" selection-start-column="28" selection-end-line="46" selection-end-column="28" />
+              <folding />
+            </state>
+          </provider>
+        </entry>
+      </file>
+      <file leaf-file-name="calibrate.py" pinned="false" current-in-tab="false">
+        <entry file="file://$PROJECT_DIR$/calibrate.py">
+          <provider selected="true" editor-type-id="text-editor">
+            <state relative-caret-position="2026">
+              <caret line="221" column="0" selection-start-line="221" selection-start-column="0" selection-end-line="221" selection-end-column="0" />
               <folding />
             </state>
           </provider>
@@ -59,11 +69,11 @@
         <option value="$PROJECT_DIR$/common/frames.py" />
         <option value="$PROJECT_DIR$/calib/io.py" />
         <option value="$PROJECT_DIR$/calib/camera.py" />
-        <option value="$PROJECT_DIR$/calibrate.py" />
         <option value="$PROJECT_DIR$/calib/app_unsynced.py" />
         <option value="$PROJECT_DIR$/calib/rig.py" />
         <option value="$PROJECT_DIR$/calib/utils.py" />
         <option value="$PROJECT_DIR$/calib/app_synced.py" />
+        <option value="$PROJECT_DIR$/calibrate.py" />
       </list>
     </option>
   </component>
@@ -340,14 +350,21 @@
       <option name="project" value="LOCAL" />
       <updated>1460393043564</updated>
     </task>
-    <option name="localTasksCounter" value="8" />
+    <task id="LOCAL-00008" summary="Fixed bug in loading of individual camera/intrinsics files into app_synced">
+      <created>1460644322634</created>
+      <option name="number" value="00008" />
+      <option name="presentableId" value="LOCAL-00008" />
+      <option name="project" value="LOCAL" />
+      <updated>1460644322634</updated>
+    </task>
+    <option name="localTasksCounter" value="9" />
     <servers />
   </component>
   <component name="ToolWindowManager">
     <frame x="65" y="24" width="1855" height="1176" extended-state="6" />
     <editor active="false" />
     <layout>
-      <window_info id="Project" active="false" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.18814017" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
+      <window_info id="Project" active="true" anchor="left" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="true" show_stripe_button="true" weight="0.18814017" sideWeight="0.5" order="0" side_tool="false" content_ui="combo" />
       <window_info id="TODO" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="6" side_tool="false" content_ui="tabs" />
       <window_info id="Event Log" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="true" content_ui="tabs" />
       <window_info id="Python Console" active="false" anchor="bottom" auto_hide="false" internal_type="DOCKED" type="DOCKED" visible="false" show_stripe_button="true" weight="0.33" sideWeight="0.5" order="7" side_tool="false" content_ui="tabs" />
@@ -386,7 +403,8 @@
     <MESSAGE value="Calibrate time reprojection -- temp result saving" />
     <MESSAGE value="Added seek max miss count for calibration seeking sensitivity" />
     <MESSAGE value="Various bugfixes" />
-    <option name="LAST_COMMIT_MESSAGE" value="Various bugfixes" />
+    <MESSAGE value="Fixed bug in loading of individual camera/intrinsics files into app_synced" />
+    <option name="LAST_COMMIT_MESSAGE" value="Fixed bug in loading of individual camera/intrinsics files into app_synced" />
   </component>
   <component name="XDebuggerManager">
     <breakpoint-manager>
@@ -711,13 +729,6 @@
         </state>
       </provider>
     </entry>
-    <entry file="file://$PROJECT_DIR$/calibrate.py">
-      <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="5904">
-          <caret line="336" column="20" selection-start-line="336" selection-start-column="20" selection-end-line="336" selection-end-column="20" />
-        </state>
-      </provider>
-    </entry>
     <entry file="file://$PROJECT_DIR$/../AMBR/Xiaomi_Yi_Mod/MultiTrigger.pyw" />
     <entry file="file://$PROJECT_DIR$/calib/rig.py">
       <provider selected="true" editor-type-id="text-editor">
@@ -745,10 +756,18 @@
         </state>
       </provider>
     </entry>
+    <entry file="file://$PROJECT_DIR$/calibrate.py">
+      <provider selected="true" editor-type-id="text-editor">
+        <state relative-caret-position="2026">
+          <caret line="221" column="0" selection-start-line="221" selection-start-column="0" selection-end-line="221" selection-end-column="0" />
+          <folding />
+        </state>
+      </provider>
+    </entry>
     <entry file="file://$PROJECT_DIR$/calib/app_synced.py">
       <provider selected="true" editor-type-id="text-editor">
-        <state relative-caret-position="317">
-          <caret line="87" column="42" selection-start-line="87" selection-start-column="42" selection-end-line="87" selection-end-column="42" />
+        <state relative-caret-position="281">
+          <caret line="46" column="28" selection-start-line="46" selection-start-column="28" selection-end-line="46" selection-end-column="28" />
           <folding />
         </state>
       </provider>
