@@ -23,13 +23,12 @@ import cv2  # @UnresolvedImport
 import numpy as np
 import calib.utils as cutils
 from calib import io as cio
+from calib.app import Application
+from calib.data import CameraIntrinsics
 from calib.camera import Camera
 from calib.rig import StereoRig
 import sys
 import re
-import common.filter as cf
-from calib.app import Application
-from calib.data import CameraIntrinsics
 
 
 class ApplicationSynced(Application):
@@ -165,7 +164,7 @@ class ApplicationSynced(Application):
 
     # TODO: automatic filter stereo --> StereoRig class
     def __automatic_filter_basic_stereo(self):
-        return cf.filter_basic_stereo(self.cameras, self.board_dims)
+        return self.rig.filter_basic_stereo(self.cameras, self.board_dims)
 
     # TODO: --> Camera class
     def __automatic_filter_basic_mono(self):

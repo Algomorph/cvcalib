@@ -22,10 +22,12 @@ limitations under the License.
 from lxml import etree
 from calib.camera import Camera
 from calib.data import CameraExtrinsics
+import cv2
 
 
 class StereoRig(object):
     _unindexed_instance_counter = 0
+
     '''
     Represents the results of a stereo calibration procedure, including all the information
     necessary to stereo-rectify images from the corresponding videos.
@@ -89,3 +91,17 @@ class StereoRig(object):
        
         _id = element.get("id")
         return StereoRig(cameras, extrinsics, _id)
+
+    def filter_basic_stereo(self, board_dims):
+        l_frame = self.cameras[0].frame
+        r_frame = self.cameras[1].frame
+
+        lfound, lcorners = cv2.findChessboardCorners(l_frame, board_dims)
+        rfound, rcorners = cv2.findChessboardCorners(r_frame, board_dims)
+        if not (lfound and rfound):
+            return False
+
+        self.cameras[0].current_image_points = lcorners
+        self.cameras[1].current_image_points = rcorners
+
+        return True

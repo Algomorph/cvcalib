@@ -30,22 +30,22 @@ def homogenize_4vec(vec):
 
 
 class Pose(object):
-    def __init__(self, T, T_inv=None, rvec=None, tvec=None):
-        self.T = T
-        if tvec is None:
-            tvec = T[0:3, 3].reshape(3, 1)
-        if rvec is None:
-            rot_mat = T[0:3, 0:3]
-            rvec = cv2.Rodrigues(rot_mat)[0]
-        if T_inv is None:
-            rot_mat = cv2.Rodrigues(rvec)[0]
+    def __init__(self, transform, inverse_transform=None, rotation_vector=None, translation_vector=None):
+        self.T = transform
+        if translation_vector is None:
+            translation_vector = transform[0:3, 3].reshape(3, 1)
+        if rotation_vector is None:
+            rot_mat = transform[0:3, 0:3]
+            rotation_vector = cv2.Rodrigues(rot_mat)[0]
+        if inverse_transform is None:
+            rot_mat = cv2.Rodrigues(rotation_vector)[0]
             rot_mat_inv = rot_mat.T
-            tvec_inv = -rot_mat_inv.dot(tvec)
-            T_inv = np.vstack((np.append(rot_mat_inv, tvec_inv, 1), [0, 0, 0, 1]))
+            inverse_translation = -rot_mat_inv.dot(translation_vector)
+            inverse_transform = np.vstack((np.append(rot_mat_inv, inverse_translation, 1), [0, 0, 0, 1]))
 
-        self.tvec = tvec
-        self.rvec = rvec
-        self.T_inv = T_inv
+        self.tvec = translation_vector
+        self.rvec = rotation_vector
+        self.T_inv = inverse_transform
 
     def dot(self, other_pose):
         return Pose(self.T.dot(other_pose.T))
@@ -58,8 +58,8 @@ class Pose(object):
         unit_vector = np.array([1., 1., 1., 1.]).T
         p1 = self.T.dot(unit_vector)
         p2 = other_pose.T.dot(unit_vector)
-        #no need to homogenize, since the last entry will end up being one anyway
-        return np.linalg.norm(p1 - p2)#it will also not contrubute to the norm, i.e. 1 - 1 = 0
+        # no need to homogenize, since the last entry will end up being one anyway
+        return np.linalg.norm(p1 - p2)# it will also not contrubute to the norm, i.e. 1 - 1 = 0
 
     @staticmethod
     def invert_pose_matrix(T):
