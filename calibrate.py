@@ -220,6 +220,12 @@ class Setting(Enum):
                                     "Skip printing output.",
                                     console_only=False, required=False)
 
+    class StaticInitializer:
+        def __init__(self):
+            Setting.generate_missing_shorthands()
+
+    __initializer = StaticInitializer()
+
     @staticmethod
     def generate_missing_shorthands():
         for item in Setting:
