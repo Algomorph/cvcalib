@@ -42,7 +42,7 @@ class ApplicationSynced(Application):
 
         self.usable_frame_count = 0
         if len(args.videos) == 1:
-            if args.input_calibration != None:
+            if args.input_calibration is not None:
                 full_path = osp.join(args.folder, args.input_calibration[0])
                 initial_calibration = cio.load_opencv_calibration(full_path)
                 if type(initial_calibration) == StereoRig:
@@ -195,12 +195,12 @@ class ApplicationSynced(Application):
                 frame = cv2.imread(osp.join(self.full_frame_folder_path, files[ix_pair]))
                 frame_number = int(re.search(r'\d\d\d\d', files[ix_pair]).group(0))
                 frame_numbers.append(frame_number)
-                found, lcorners = cv2.findChessboardCorners(frame, self.board_dims)
+                found, corners = cv2.findChessboardCorners(frame, self.board_dims)
                 if not found:
                     raise ValueError("Could not find corners in image '{0:s}'".format(files[ix_pair]))
                 grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                cv2.cornerSubPix(grey, lcorners, (11, 11), (-1, -1), self.criteria_subpix)
-                camera.imgpoints.append(lcorners)
+                cv2.cornerSubPix(grey, corners, (11, 11), (-1, -1), self.criteria_subpix)
+                camera.imgpoints.append(corners)
                 cam_frame_ct += 1
             usable_frame_ct = min(usable_frame_ct, cam_frame_ct)
             frame_number_sets.append(frame_numbers)
@@ -262,8 +262,6 @@ class ApplicationSynced(Application):
 
         usable_frame_ct = 0
         i_start_frame = 0
-        i_frame = 0
-
         report_interval = 10
 
         while continue_capture:
@@ -291,9 +289,9 @@ class ApplicationSynced(Application):
                     continue_capture &= video.more_frames_remain
                 continue_capture &= (not (self.args.manual_filter and key == 27))
             i_start_frame = i_end_frame
+            if self.args.manual_filter and key == 27:
+                continue_capture = False
 
-        if self.args.manual_filter and key == 27:
-            continue_capture = False
         if self.args.manual_filter:
             cv2.destroyAllWindows()
         return usable_frame_ct
@@ -312,7 +310,7 @@ class ApplicationSynced(Application):
         i_frame = 0
         usable_frame_ct = 0
 
-        while (continue_capture):
+        while continue_capture:
             if not self.args.frame_number_filter or i_frame in self.frame_numbers:
                 add_corners = self.__automatic_filter()
 
@@ -341,8 +339,8 @@ class ApplicationSynced(Application):
     def gather_frame_data(self):
         self.object_points = []
         print("Gathering frame data...")
-        usable_frame_ct = 0
-        if (self.args.load_corners):
+
+        if self.args.load_frame_data:
             self.board_object_corner_set = \
                 cio.load_corners(self.aux_data_file, self.cameras)
 
@@ -353,13 +351,13 @@ class ApplicationSynced(Application):
                 self.object_points.append(self.board_object_corner_set)
 
         else:
-            if (self.args.load_images):
+            if self.args.load_images:
                 usable_frame_ct = self.load_frame_images()
-            elif (self.args.frame_count_target != -1):
+            elif self.args.frame_count_target != -1:
                 usable_frame_ct = self.run_capture_deterministic_count()
             else:
                 usable_frame_ct = self.run_capture()
-            if self.args.save_corners:
+            if self.args.save_frame_data:
                 cio.save_corners(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
                                  self.cameras, self.board_object_corner_set)
 
@@ -381,6 +379,7 @@ class ApplicationSynced(Application):
                                     self.args.use_fisheye_model,
                                     self.args.use_rational_model,
                                     self.args.use_tangential_coeffs,
+                                    False,  # thin prism
                                     self.args.precalibrate_solo,
                                     self.args.stereo_only,
                                     self.args.max_iterations,
@@ -398,8 +397,9 @@ class ApplicationSynced(Application):
             cutils.calibrate_wrapper(self.camera, self.object_points,
                                      self.args.use_rational_model,
                                      self.args.use_tangential_coeffs,
+                                     False,  # thin prism
                                      self.args.max_iterations,
-                                     self.args.input_calibration != None)
+                                     self.args.input_calibration is not None)
             calibration_result = self.camera
         if not self.args.skip_printing_output:
             print(calibration_result)

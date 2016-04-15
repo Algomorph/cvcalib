@@ -88,7 +88,7 @@ class Setting(Enum):
                              console_only=True, required=False)
     # ================= WORK FOLDER, INPUT & OUTPUT FILES =============================================================#
     folder = Argument("./", '?', str, 'store',
-                      "Path to root folder to work in. If set to '*settings_file_location' and a "+
+                      "Path to root folder to work in. If set to '*settings_file_location' and a " +
                       " settings file is provided, will be set to the location of the settings file.",
                       console_only=False, required=False)
     videos = Argument(["left.mp4", "right.mp4"], '+', string_arr, required_length(1, 10),
@@ -112,6 +112,7 @@ class Setting(Enum):
                              "calibration time ranges, frame numbers, and other auxiliary data.",
                              console_only=False, required=False, shorthand="df")
     # ============== STORAGE CONTROL FLAGS ============================================================================#
+    # calibration intervals:
     save_calibration_intervals = Argument(False, '?', 'bool_flag', 'store_true',
                                           "Save the calculated time bounds of calibration period within the video for" +
                                           " future re-use.",
@@ -121,23 +122,28 @@ class Setting(Enum):
                                           "video (avoids potentially-long computation that seeks out the calibration " +
                                           "in the video)",
                                           console_only=False, required=False)
-    # TODO rename to 'save/load_frame_data', b/c were also loading poses and other such things
-    save_corner_positions = Argument(False, '?', 'bool_flag', 'store_true',
-                                     "Save (or update) the gathered locations of inner board corners.",
-                                     console_only=False, required=False)
-    load_corner_positions = Argument(False, '?', 'bool_flag', 'store_true',
-                                     "Load the previously-gathered locations of inner board corners " +
-                                     "(skips gathering frame data)",
-                                     console_only=False, required=False)
+    # frame data
+    save_frame_data = Argument(False, '?', 'bool_flag', 'store_true',
+                               "Save (or update) the gathered locations of inner board corners and other frame data.",
+                               console_only=False, required=False)
+    load_frame_data = Argument(False, '?', 'bool_flag', 'store_true',
+                               "Load the previously-gathered locations of inner board corners and other frame data " +
+                               "(skips gathering frame data).",
+                               console_only=False, required=False)
+    # output calibration
     skip_saving_output = Argument(False, '?', 'bool_flag', 'store_true',
                                   "Skip saving the output file. Usually, you don't want to skip that.",
                                   console_only=False, required=False)
+
+    # cherry-picked frame images
     save_images = Argument(False, '?', 'bool_flag', 'store_true',
                            "Save images picked out for calibration. Synced mode only.",
                            console_only=False, required=False)
     load_images = Argument(False, '?', 'bool_flag', 'store_true',
                            "Load images previously picked out for calibration (skips frame gathering). Synced only.",
                            console_only=False, required=False)
+
+    # TODO: enable saving rvec & tvec of camera pose obtained during calibration
     # ============== CALIBRATION PREVIEW ==============================================================================#
     preview = Argument(False, '?', 'bool_flag', 'store_true',
                        "Save (or update) setting file.",
@@ -150,7 +156,7 @@ class Setting(Enum):
                            "Checkerboard horizontal inner corner count (width in squares - 1).",
                            console_only=False, required=False)
     board_height = Argument(6, '?', int, 'store',
-                            "Checkerboard vertial inner corner count (height in squares - 1).",
+                            "Checkerboard vertical inner corner count (height in squares - 1).",
                             console_only=False, required=False)
     board_square_size = Argument(0.0198888, '?', float, 'store',
                                  "Checkerboard square size, in meters.",
@@ -193,16 +199,19 @@ class Setting(Enum):
                            "Does nothing for single-camera calibration. Synced mode only.",
                            console_only=False, required=False, shorthand="cso")
     use_rational_model = Argument(False, '?', 'bool_flag', 'store_true',
-                                  "Use the newer OpenCV rational model (8 distorition coefficients w/ tangential " +
-                                  "ones, 6 without) as opposed to the old 3+2 polynomeal coefficient model.",
+                                  "Use the newer OpenCV rational model (8 distortion coefficients w/ tangential " +
+                                  "ones, 6 without) as opposed to the old 3+2 polynomial coefficient model.",
                                   console_only=False, required=False, shorthand="cr")
     use_tangential_coeffs = Argument(False, '?', 'bool_flag', 'store_true',
                                      "Use tangential distortion coefficients (usually unnecessary).",
                                      console_only=False, required=False, shorthand="ct")
-    # TODO: test
+    # TODO: test fisheye
     use_fisheye_model = Argument(False, '?', 'bool_flag', 'store_true',
                                  "Use the fisheye distortion model.",
                                  console_only=False, required=False, shorthand="cf")
+    test = Argument(False, '?', 'bool_flag', 'store_true',
+                    "Will fix all calibration parameters and run only one iteration, " +
+                    "in order to simply print out the reprojection error. Does not save results.")
     # ============== TIME SYNCHRONIZATION CONTROLS ====================================================================#
     unsynced = Argument(False, '?', 'bool_flag', 'store_true',
                         "Used to find extrinsics between multiple unsynchronized cameras."
@@ -214,7 +223,7 @@ class Setting(Enum):
     max_frame_offset = Argument(100, '?', int, 'store',
                                 "Used for unsynced calibration only: maximum delay, in frames, between videos.",
                                 console_only=False, required=False)
-    seek_miss_count = Argument(5,'?',int,arg_help="Increase sensitivty and seek time of calibration intervals")
+    seek_miss_count = Argument(5, '?', int, arg_help="Increase sensitivity and seek time of calibration intervals")
     use_all_frames = Argument(False, '?', 'bool_flag', 'store_true', 'Use all frames (skips calibration seeking)')
     # ============== VERBOSITY CONTROLS   =============================================================================#
     skip_printing_output = Argument(False, '?', 'bool_flag', 'store_true',
@@ -265,11 +274,11 @@ class Setting(Enum):
             if (item.value.console_only and console_only) or (not item.value.console_only and not console_only):
                 if item.value.type == 'bool_flag':
                     parser.add_argument(item.value.shorthand, '--' + item.name, action=item.value.action,
-                                        default=defaults[item.name],required=item.value.required,
+                                        default=defaults[item.name], required=item.value.required,
                                         help=item.value.help)
                 else:
                     parser.add_argument(item.value.shorthand, '--' + item.name, action=item.value.action,
-                                        type=item.value.type, nargs=item.value.nargs,required=item.value.required,
+                                        type=item.value.type, nargs=item.value.nargs, required=item.value.required,
                                         default=defaults[item.name], help=item.value.help)
         if not console_only:
             parser.set_defaults(**defaults)
@@ -305,8 +314,8 @@ def main():
     defaults = Setting.generate_defaults_dict()
     conf_parser = \
         Setting.generate_parser(defaults, console_only=True, description=
-                                "Use one or more .mp4 video files to perform calibration: " +
-                                "find the cameras' intrinsics and/or extrinsics.")
+        "Use one or more .mp4 video files to perform calibration: " +
+        "find the cameras' intrinsics and/or extrinsics.")
 
     # ============== STORAGE/RETRIEVAL OF CONSOLE SETTINGS ===========================================#
     args, remaining_argv = conf_parser.parse_known_args()

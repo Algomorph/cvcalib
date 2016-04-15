@@ -375,7 +375,7 @@ class ApplicationUnsynced(Application):
                              self.args.use_tangential_coeffs,
                              precalibrate_solo=False,
                              stereo_only=True,
-                             max_iters=self.args.max_iterations,
+                             max_iterations=self.args.max_iterations,
                              fix_intrinsics=True)
             target_cam.extrinsics = rig.extrinsics
 
@@ -597,7 +597,7 @@ class ApplicationUnsynced(Application):
             else:
                 self.find_calibration_intervals(verbose)
 
-        if self.args.load_corners:
+        if self.args.load_frame_data:
             self.board_object_corner_set = cio.load_corners(self.aux_data_file, self.cameras,
                                                             verbose=verbose)
             if verbose:
@@ -619,7 +619,7 @@ class ApplicationUnsynced(Application):
 
         else:
             self.run_capture(verbose)
-            if self.args.save_corners:
+            if self.args.save_frame_data:
                 cio.save_corners(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
                                  self.cameras,
                                  self.board_object_corner_set)

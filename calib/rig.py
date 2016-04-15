@@ -1,4 +1,4 @@
-'''
+"""
 /home/algomorph/Factory/calib_video_opencv/calib/rig.py.
 Created on Mar 24, 2016.
 @author: Gregory Kramida
@@ -17,7 +17,7 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
 from lxml import etree
 from calib.camera import Camera
@@ -25,8 +25,14 @@ from calib.data import CameraExtrinsics
 import cv2
 
 
+# TODO: StereoRig & Camera should have a single, abstract ancestor to enforce interface compliance,
+# such as filtering functions
+
+
 class StereoRig(object):
-    _unindexed_instance_counter = 0
+    # TODO: get rid of instance counter, initialize with current date instead (always!).
+
+    __unindexed_instance_counter = 0
 
     '''
     Represents the results of a stereo calibration procedure, including all the information
@@ -34,36 +40,38 @@ class StereoRig(object):
     Camera cameras <left,right> are always represented by indices <0,1> respectively
     '''
     def __init__(self, cameras, extrinsics=CameraExtrinsics(), _id = None):
-        '''
+        """
         Constructor
         @type cameras: tuple[calib.camera.Camera]
         @param cameras: tuple composed of two videos of the stereo camera pair.
         @type extrinsics: calib.data.CameraExtrinsics
-        @param extrinsics: extrinsic parameters, representing transformation of camera 1 from 
+        @param extrinsics: extrinsic parameters, representing transformation of camera 1 from
         camera 0, as well as the essential & fundamental matrices of this relationship
-        '''
+        """
         self.cameras = cameras
         self.extrinsics = extrinsics
-        if(_id is None):
-            self.id = StereoRig._unindexed_instance_counter
-            StereoRig._unindexed_instance_counter+=1
+        if _id is None:
+            self.id = StereoRig.__unindexed_instance_counter
+            StereoRig.__unindexed_instance_counter += 1
         else:
             self.id = _id
         
     def to_xml(self, root_element, as_sequence = False):
-        '''
+        """
         Build an xml node representation of this object under the provided root xml element
+        @type as_sequence: bool
+        @param as_sequence: whether to write to OpenCV sequence XML format, i.e. with "_" as element name
         @type root_element:  lxml.etree.SubElement
         @param root_element: the root element to build under
-        '''
-        if(as_sequence == False):
+        """
+        if not as_sequence:
             elem_name = self.__class__.__name__
         else:
             elem_name = "_"
         stereo_rig_elem = etree.SubElement(root_element, elem_name,
                                              attrib={"id":str(self.id)})
         cameras_elem = etree.SubElement(stereo_rig_elem, "Cameras")
-        #TODO: change serialization scheme to serialize cameras directly when that becomes possible
+        # TODO: change serialization scheme to serialize cameras directly when that becomes possible
         self.cameras[0].to_xml(cameras_elem, as_sequence = True)
         self.cameras[1].to_xml(cameras_elem, as_sequence = True)
         self.extrinsics.to_xml(stereo_rig_elem)
@@ -76,17 +84,15 @@ class StereoRig(object):
         
     @staticmethod
     def from_xml(element):
-        '''
+        """
         Build a StereoRig object out of the given xml node
         @type element: lxml.etree.SubElement
         @param element: the element to construct an StereoRig object from
-        @return a new StereoRig object constructed from XML node with matrices in 
+        @return a new StereoRig object constructed from XML node with matrices in
         OpenCV format
-        '''
+        """
         cameras_elem = element.find("Cameras")
-        cameras = []
-        cameras.append(Camera.from_xml(cameras_elem[0]))
-        cameras.append(Camera.from_xml(cameras_elem[1]))
+        cameras = [Camera.from_xml(cameras_elem[0]), Camera.from_xml(cameras_elem[1])]
         extrinsics = CameraExtrinsics.from_xml(element.find("CameraExtrinsics"))
        
         _id = element.get("id")

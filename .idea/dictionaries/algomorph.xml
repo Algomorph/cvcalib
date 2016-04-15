@@ -13,6 +13,8 @@
       <w>reprojection</w>
       <w>undistort</w>
       <w>unsynced</w>
+      <w>unsynchronized</w>
+      <w>yaml</w>
     </words>
   </dictionary>
 </component>
