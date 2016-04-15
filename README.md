@@ -2,6 +2,10 @@
 
 Powerful console application for calibration (including stereo calibration) of cameras from video files based on the OpenCV library.
 
+###News Update
+
+The *calib_video_opencv* package is currently undergoing major structural/design improvements and feature additions in the unsynced branch, including an a feature that allows to automatically synchronize video feeds without relying on sound relying on pre-calibrated camera intrinsics. It is under active development and far from polished, so use at your own risk.
+
 ###What the heck is *sync_video.py*?
 
 This is for automated video syncing using sound. Sound has very high temporal resolution, much higher than video. In case the videos for calibration are obtained using cameras that were not genlocked or synchronized in any way, this utility can save you a lot of time spent finding the corresponding frames in the two videos and manually editing them to synchronize them. It finds the offset between the videos by matching groupings of frequency peaks in their audio, seeks out the calibration board (optionally) to determine what to cut off from the start and the end, and automatically recodes the videos for you to input into the provided calibration script. The offset-finding is adapted from Allison Deal's [VideoSync] (https://github.com/allisonnicoledeal/VideoSync).
