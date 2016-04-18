@@ -190,7 +190,6 @@ class ApplicationSynced(Application):
             cam_frame_ct = 0
             frame_numbers = []
             for ix_pair in range(len(files)):
-                # TODO: assumes there is the same number of frames for all cameras, and all frame indexes match
                 frame = cv2.imread(osp.join(self.full_frame_folder_path, files[ix_pair]))
                 frame_number = int(re.search(r'\d\d\d\d', files[ix_pair]).group(0))
                 frame_numbers.append(frame_number)
@@ -339,7 +338,7 @@ class ApplicationSynced(Application):
 
         if self.args.load_frame_data:
             self.board_object_corner_set = \
-                cio.load_corners(self.aux_data_file, self.cameras)
+                cio.load_frame_data(self.aux_data_file, self.cameras)
 
             usable_frame_ct = len(self.cameras[0].imgpoints)
 
@@ -354,8 +353,8 @@ class ApplicationSynced(Application):
             else:
                 usable_frame_ct = self.run_capture()
             if self.args.save_frame_data:
-                cio.save_corners(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
-                                 self.cameras, self.board_object_corner_set)
+                cio.save_frame_data(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
+                                    self.cameras, self.board_object_corner_set)
 
         print("Total usable frames: {0:d} ({1:.3%})"
               .format(usable_frame_ct, float(usable_frame_ct) / self.total_frames))

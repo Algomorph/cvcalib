@@ -629,8 +629,8 @@ class ApplicationUnsynced(Application):
                 self.find_calibration_intervals(verbose)
 
         if self.args.load_frame_data:
-            self.board_object_corner_set = cio.load_corners(self.aux_data_file, self.cameras,
-                                                            verbose=verbose)
+            self.board_object_corner_set = cio.load_frame_data(self.aux_data_file, self.cameras,
+                                                               verbose=verbose)
             if verbose:
                 for camera in self.cameras:
                     max_rms = 0.0
@@ -652,6 +652,6 @@ class ApplicationUnsynced(Application):
             self.run_capture(verbose)
             self.find_camera_poses(verbose)
             if self.args.save_frame_data:
-                cio.save_corners(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
-                                 self.cameras,
-                                 self.board_object_corner_set)
+                cio.save_frame_data(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
+                                    self.cameras,
+                                    self.board_object_corner_set)

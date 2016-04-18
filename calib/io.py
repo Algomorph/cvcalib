@@ -5,7 +5,7 @@ Created on Jan 1, 2016
 """
 from lxml import etree
 import numpy as np
-from calib import data, camera, geom, rig
+from calib import data, camera as camera_module, geom, rig
 from calib.camera import Pose
 
 IMAGE_POINTS = "image_points"
@@ -14,15 +14,10 @@ OBJECT_POINT_SET = "object_point_set"
 POSES = "poses"
 CALIBRATION_INTERVALS = "calibration_intervals"
 
-'''
-TODO: need a separate set of load/save functions for frame_numbers,
-remove these from here OR rename to load_frame_data
-'''
 
-
-def load_corners(archive, cameras, board_height=None,
-                 board_width=None, board_square_size=None,
-                 verbose=True):
+def load_frame_data(archive, cameras, board_height=None,
+                    board_width=None, board_square_size=None,
+                    verbose=True):
 
     if verbose:
         print("Loading object & image positions from archive.")
@@ -74,7 +69,7 @@ def load_corners(archive, cameras, board_height=None,
     return object_point_set
 
 
-def save_corners(archive, path, cameras, object_point_set, verbose=True):
+def save_frame_data(archive, path, cameras, object_point_set, verbose=True):
     if verbose:
         print("Saving corners to {0:s}".format(path))
     for camera in cameras:
@@ -152,7 +147,7 @@ def load_opencv_calibration(path):
     tree = etree.parse(path)
     first_elem = tree.getroot().getchildren()[0]
     class_name = first_elem.tag
-    modules = [data, camera, rig]
+    modules = [data, camera_module, rig]
     object_class = None
     for module in modules:
         if hasattr(module, class_name):
