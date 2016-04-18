@@ -1,8 +1,8 @@
-'''
+"""
  file_name
 
  @author: Gregory Kramida
-   Copyright: (c) Gregory Kramida 2016 
+   Copyright: (c) Gregory Kramida 2016
 
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
@@ -15,13 +15,14 @@
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
  See the License for the specific language governing permissions and
  limitations under the License.
-'''
+"""
 import re
 from lxml import etree#@UnresolvedImport
 import numpy as np
 
+
 def make_opencv_matrix_xml_element(root, mat, name):
-    '''
+    """
     Construct an xml element out of a numpy matrix formatted for OpenCV XML input
     @type root: lxml.etree.SubElement
     @param root: root xml element to build under
@@ -29,16 +30,16 @@ def make_opencv_matrix_xml_element(root, mat, name):
     @param mat: the numpy matrix to convert
     @type name: str
     @param name: name of the matrix XML element
-    '''
+    """
     mat_element = etree.SubElement(root, name, attrib={"type_id":"opencv-matrix"})
     rows_elem = etree.SubElement(mat_element, "rows")
     rows_elem.text = str(mat.shape[0])
     cols_elem = etree.SubElement(mat_element, "cols")
     cols_elem.text = str(mat.shape[1])
     dt_elem = etree.SubElement(mat_element, "dt")
-    if(mat.dtype == np.dtype('float64')):
+    if mat.dtype == np.dtype('float64'):
         dt_elem.text = "d"
-    elif(mat.dtype == np.dtype("float32")):
+    elif mat.dtype == np.dtype("float32"):
         dt_elem.text = "f"
     else:
         raise ValueError("dtype " + str(mat.dtype) + "not supported. Expecting float64 or float32.")
@@ -49,10 +50,11 @@ def make_opencv_matrix_xml_element(root, mat, name):
     data_elem.text = data_string
     return mat_element
 
+
 def parse_xml_matrix(mat_element):
-    '''
+    """
     Generate numpy matrix from opencv-formatted xml of a 2d matrix
-    '''
+    """
     rows = int(mat_element.find("rows").text)
     cols = int(mat_element.find("cols").text)
     type_flag = mat_element.find("dt").text

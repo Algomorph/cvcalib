@@ -48,7 +48,7 @@ class ApplicationUnsynced(Application):
         intrinsic_arr = []
 
         if args.input_calibration is None or len(args.input_calibration) == 0:
-            raise ValueError("Unsynched calibration requires input calibration parameters for all " +
+            raise ValueError("Unsynced calibration requires input calibration parameters for all " +
                              "cameras used to take the videos.")
 
         # load calibration files
@@ -245,6 +245,7 @@ class ApplicationUnsynced(Application):
             still_streak = [0, 0]
             still_streaks = []
             frame_counter = 0
+            # TODO: fix still streak acquisition
             while i_frame < camera.calibration_interval[1] and not (self.args.manual_filter and key == 27):
                 add_corners = False
                 if not self.args.frame_number_filter or i_frame in camera.usable_frames:
@@ -330,7 +331,7 @@ class ApplicationUnsynced(Application):
                         ix_target_streak += 1
                 self.cameras[i_vid].still_streak_overlaps[j_vid] = overlaps
 
-    def stereo_calibrate_stills(self, verbose=True):
+    def calibrate_using_stills(self, verbose=True):
         source_cam = self.cameras[0]
 
         # cut at least this number of frames off the range bounds, because
@@ -373,13 +374,16 @@ class ApplicationUnsynced(Application):
                              self.args.use_fisheye_model,
                              self.args.use_rational_model,
                              self.args.use_tangential_coeffs,
+                             self.args.use_thin_prism,
+                             self.args.fix_radial,
+                             self.args.fix_thin_prism,
                              precalibrate_solo=False,
                              stereo_only=True,
                              max_iterations=self.args.max_iterations,
                              fix_intrinsics=True)
             target_cam.extrinsics = rig.extrinsics
 
-    def calibrate_time_reprojection_full(self, sample_count=1000, verbose=2, save_data=False, min_offset_datapoints = 10):
+    def calibrate_time_reprojection(self, sample_count=1000, verbose=2, save_data=False, min_offset_datapoints=10):
         if type(verbose) == bool:
             verbose = int(verbose)
         logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)

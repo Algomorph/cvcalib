@@ -39,7 +39,7 @@ class StereoRig(object):
     necessary to stereo-rectify images from the corresponding videos.
     Camera cameras <left,right> are always represented by indices <0,1> respectively
     '''
-    def __init__(self, cameras, extrinsics=CameraExtrinsics(), _id = None):
+    def __init__(self, cameras, extrinsics=CameraExtrinsics(), _id=None):
         """
         Constructor
         @type cameras: tuple[calib.camera.Camera]
@@ -56,7 +56,7 @@ class StereoRig(object):
         else:
             self.id = _id
         
-    def to_xml(self, root_element, as_sequence = False):
+    def to_xml(self, root_element, as_sequence=False):
         """
         Build an xml node representation of this object under the provided root xml element
         @type as_sequence: bool
@@ -68,19 +68,18 @@ class StereoRig(object):
             elem_name = self.__class__.__name__
         else:
             elem_name = "_"
-        stereo_rig_elem = etree.SubElement(root_element, elem_name,
-                                             attrib={"id":str(self.id)})
+        stereo_rig_elem = etree.SubElement(root_element, elem_name, attrib={"id": str(self.id)})
         cameras_elem = etree.SubElement(stereo_rig_elem, "Cameras")
         # TODO: change serialization scheme to serialize cameras directly when that becomes possible
-        self.cameras[0].to_xml(cameras_elem, as_sequence = True)
-        self.cameras[1].to_xml(cameras_elem, as_sequence = True)
+        self.cameras[0].to_xml(cameras_elem, as_sequence=True)
+        self.cameras[1].to_xml(cameras_elem, as_sequence=True)
         self.extrinsics.to_xml(stereo_rig_elem)
         
     def __str__(self):
         return (("{:s}, id: {:s}\n-----CAM0-----\n{:s}\n-----CAM1-----\n{:s}"+
                  "\n--------------\nExtrinsics:\n{:s}\n--------------")
-                .format(self.__class__.__name__, str(self.id),str(self.cameras[0]),
-                        str(self.cameras[1]),str(self.extrinsics)))
+                .format(self.__class__.__name__, str(self.id), str(self.cameras[0]),
+                        str(self.cameras[1]), str(self.extrinsics)))
         
     @staticmethod
     def from_xml(element):

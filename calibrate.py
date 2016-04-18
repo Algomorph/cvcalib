@@ -88,7 +88,7 @@ class Setting(Enum):
                              console_only=True, required=False)
     # ================= WORK FOLDER, INPUT & OUTPUT FILES =============================================================#
     folder = Argument("./", '?', str, 'store',
-                      "Path to root folder to work in. If set to '*settings_file_location' and a " +
+                      "Path to root folder to work in. If set to '!settings_file_location' and a " +
                       " settings file is provided, will be set to the location of the settings file.",
                       console_only=False, required=False)
     videos = Argument(["left.mp4", "right.mp4"], '+', string_arr, required_length(1, 10),
@@ -205,6 +205,15 @@ class Setting(Enum):
     use_tangential_coeffs = Argument(False, '?', 'bool_flag', 'store_true',
                                      "Use tangential distortion coefficients (usually unnecessary).",
                                      console_only=False, required=False, shorthand="ct")
+    use_thin_prism = Argument(False, '?', 'bool_flag', 'store_true',
+                              "Use thin prism coefficients / model",
+                              console_only=False, required=False, shorthand="cp")
+    fix_thin_prism = Argument(False, '?', 'bool_flag', 'store_true',
+                              "Fix the thin prism coefficients",
+                              console_only=False, required=False, shorthand="cfp")
+    fix_radial = Argument(False, '?', 'bool_flag', 'store_true',
+                          "Fix radial distortion coefficients",
+                          console_only=False, required=False, shorthand="cfr")
     # TODO: test fisheye
     use_fisheye_model = Argument(False, '?', 'bool_flag', 'store_true',
                                  "Use the fisheye distortion model.",
@@ -344,14 +353,14 @@ def main():
         file_stream.close()
 
     # process "special" setting values
-    if args.folder == "*settings_file_location":
+    if args.folder == "!settings_file_location":
         if args.settings_file and osp.isfile(args.settings_file):
             args.folder = osp.dirname(args.settings_file)
 
     if args.unsynced:
         app = ApplicationUnsynced(args)
         app.gather_frame_data()
-        app.calibrate_time_reprojection_full()
+        app.calibrate_time_reprojection()
     else:
         app = ApplicationSynced(args)
         app.gather_frame_data()

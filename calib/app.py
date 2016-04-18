@@ -38,8 +38,6 @@ class Application(object):
         """
         self.args = args
 
-        self.frame_numbers = None
-
         self.full_frame_folder_path = osp.join(args.folder, args.filtered_image_folder)
         # if image folder (for captured frames) doesn't yet exist, create it
         if args.save_images and not os.path.exists(self.full_frame_folder_path):

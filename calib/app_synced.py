@@ -111,7 +111,6 @@ class ApplicationSynced(Application):
             raise ValueError("This calibration tool can only work with single " +
                              "video files or video pairs from synchronized stereo. " +
                              "Provided number of videos: {:d}.".format(len(args.videos)))
-        self.frame_numbers = []
 
     # TODO: --> StereoRig class
     def __automatic_filter_stereo(self):
@@ -201,6 +200,7 @@ class ApplicationSynced(Application):
                 grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 cv2.cornerSubPix(grey, corners, (11, 11), (-1, -1), self.criteria_subpix)
                 camera.imgpoints.append(corners)
+                camera.usable_frames[frame_number] = ix_pair
                 cam_frame_ct += 1
             usable_frame_ct = min(usable_frame_ct, cam_frame_ct)
             frame_number_sets.append(frame_numbers)
@@ -220,8 +220,6 @@ class ApplicationSynced(Application):
                                              fn0, self.cameras[0].name,
                                              fn1, self.cameras[1].name))
 
-        self.frame_numbers = frame_number_sets[0]
-
         for i_frame in range(usable_frame_ct):  # @UnusedVariable
             self.object_points.append(self.board_object_corner_set)
         return usable_frame_ct
@@ -231,10 +229,9 @@ class ApplicationSynced(Application):
             print("Usable frames: {0:d} ({1:.3%})"
                   .format(usable_frame_ct, float(usable_frame_ct) / (i_frame + 1)))
 
-        for video in self.cameras:
-            video.add_corners(i_frame, self.criteria_subpix,
+        for camera in self.cameras:
+            camera.add_corners(i_frame, self.criteria_subpix,
                               self.full_frame_folder_path, self.args.save_images)
-        self.frame_numbers.append(i_frame)
         self.object_points.append(self.board_object_corner_set)
 
     def filter_frame_manually(self):
@@ -311,7 +308,7 @@ class ApplicationSynced(Application):
         usable_frame_ct = 0
 
         while continue_capture:
-            if not self.args.frame_number_filter or i_frame in self.frame_numbers:
+            if not self.args.frame_number_filter or i_frame in self.camera.usable_frames:
                 add_corners = self.__automatic_filter()
 
                 if self.args.manual_filter:
@@ -344,7 +341,6 @@ class ApplicationSynced(Application):
             self.board_object_corner_set = \
                 cio.load_corners(self.aux_data_file, self.cameras)
 
-            self.frame_numbers = list(self.cameras[0].usable_frames.keys())
             usable_frame_ct = len(self.cameras[0].imgpoints)
 
             for i_frame in range(usable_frame_ct):  # @UnusedVariable
@@ -371,7 +367,11 @@ class ApplicationSynced(Application):
             print("Not enough usable frames to calibrate." +
                   " Need at least {0:d}, got {1:d}".format(min_frames, self.usable_frame_count))
             return
-        print("Calibrating for max. {0:d} iterations...".format(self.args.max_iterations))
+
+        if self.args.test:
+            print("Testing existing calibration (no output will be saved)...")
+        else:
+            print("Calibrating for max. {0:d} iterations...".format(self.args.max_iterations))
 
         if len(self.cameras) > 1:
             cutils.stereo_calibrate(self.rig,
@@ -379,7 +379,9 @@ class ApplicationSynced(Application):
                                     self.args.use_fisheye_model,
                                     self.args.use_rational_model,
                                     self.args.use_tangential_coeffs,
-                                    False,  # thin prism
+                                    self.args.use_thin_prism,
+                                    self.args.fix_radial,
+                                    self.args.fix_thin_prism,
                                     self.args.precalibrate_solo,
                                     self.args.stereo_only,
                                     self.args.max_iterations,
@@ -397,12 +399,15 @@ class ApplicationSynced(Application):
             cutils.calibrate_wrapper(self.camera, self.object_points,
                                      self.args.use_rational_model,
                                      self.args.use_tangential_coeffs,
-                                     False,  # thin prism
+                                     self.args.use_thin_prism,
+                                     self.args.fix_radial,
+                                     self.args.fix_thin_prism,
                                      self.args.max_iterations,
-                                     self.args.input_calibration is not None)
+                                     self.args.input_calibration is not None,
+                                     self.args.test)
             calibration_result = self.camera
         if not self.args.skip_printing_output:
             print(calibration_result)
-        if not self.args.skip_saving_output:
+        if not self.args.skip_saving_output and not self.args.test:
             cio.save_opencv_calibration(osp.join(self.args.folder, self.args.output),
                                         calibration_result)

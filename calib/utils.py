@@ -62,10 +62,22 @@ def calibrate(camera, object_points, flags, criteria):
     return rotation_vectors, translation_vectors
 
 
+def fix_radial_flags(flags):
+    flags = flags | cv2.CALIB_FIX_K1
+    flags = flags | cv2.CALIB_FIX_K2
+    flags = flags | cv2.CALIB_FIX_K3
+    flags = flags | cv2.CALIB_FIX_K4
+    flags = flags | cv2.CALIB_FIX_K5
+    flags = flags | cv2.CALIB_FIX_K6
+    return flags
+
+
 def calibrate_wrapper(camera, object_points,
                       use_rational_model=True,
                       use_tangential=False,
                       use_thin_prism=False,
+                      fix_radial=False,
+                      fix_thin_prism = False,
                       max_iterations=30,
                       use_existing_guess=False,
                       test=False):
@@ -78,15 +90,14 @@ def calibrate_wrapper(camera, object_points,
         flags = flags | cv2.CALIB_FIX_FOCAL_LENGTH
         # apparently, we can't fix the tangential distance. What the hell? Zero it out.
         flags = flags | cv2.CALIB_ZERO_TANGENT_DIST
-        flags = flags | cv2.CALIB_FIX_K1
-        flags = flags | cv2.CALIB_FIX_K2
-        flags = flags | cv2.CALIB_FIX_K3
-        flags = flags | cv2.CALIB_FIX_K4
-        flags = flags | cv2.CALIB_FIX_K5
-        flags = flags | cv2.CALIB_FIX_K6
+        flags = fix_radial_flags(flags)
         flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
-        criteria = (cv2.TERM_CRITERIA_MAX_ITER, 1)
+        criteria = (cv2.TERM_CRITERIA_MAX_ITER, 1, 0)
     else:
+        if fix_radial:
+            flags = fix_radial_flags(flags)
+        if fix_thin_prism:
+            flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
         criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, max_iterations,
                     2.2204460492503131e-16)
     if use_existing_guess:
@@ -95,8 +106,12 @@ def calibrate_wrapper(camera, object_points,
         flags = flags | cv2.CALIB_ZERO_TANGENT_DIST
     if use_rational_model:
         flags = flags | cv2.CALIB_RATIONAL_MODEL
+        if len(camera.intrinsics.distortion_coeffs) < 8:
+            camera.intrinsics.distortion_coeffs.resize((8,))
     if use_thin_prism:
         flags = flags | cv2.CALIB_THIN_PRISM_MODEL
+        if len(camera.intrinsics.distortion_coeffs) != 12:
+            camera.intrinsics.distortion_coeffs = np.resize(camera.intrinsics.distortion_coeffs, (12,))
     return calibrate(camera, object_points, flags, criteria)
 
 
@@ -106,6 +121,8 @@ def stereo_calibrate(rig,
                      use_rational_model=True,
                      use_tangential=False,
                      use_thin_prism=False,
+                     fix_radial=False,
+                     fix_thin_prism=False,
                      precalibrate_solo=True,
                      stereo_only=False,
                      max_iterations=30,
@@ -160,8 +177,24 @@ def stereo_calibrate(rig,
             flags = flags | cv2.CALIB_ZERO_TANGENT_DIST
         if use_rational_model:
             flags = flags | cv2.CALIB_RATIONAL_MODEL
+            # resize to accommodate sought number of coefficients
+            if len(intrinsics0.distortion_coeffs) < 8:
+                intrinsics0.distortion_coeffs.resize((8,))
+            if len(intrinsics1.distortion_coeffs) < 8:
+                intrinsics1.distortion_coeffs.resize((8,))
         if use_thin_prism:
-            flags = flags | cv2.CALIB_RATIONAL_MODEL
+            flags = flags | cv2.CALIB_THIN_PRISM_MODEL
+            # the thin prism model currently demands exactly 12 coefficients
+            if len(intrinsics0.distortion_coeffs) != 12:
+                intrinsics0.distortion_coeffs = np.resize(intrinsics0.distortion_coeffs, (12,))
+            if len(intrinsics1.distortion_coeffs) != 12:
+                intrinsics1.distortion_coeffs = np.resize(intrinsics1.distortion_coeffs, (12,))
+        if fix_radial:
+            if fix_radial:
+                flags = fix_radial_flags(flags)
+            if fix_thin_prism:
+                flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
+
         if precalibrate_solo:
             calibrate(cam0, object_points, flags, criteria)
             calibrate(cam1, object_points, flags, criteria)
