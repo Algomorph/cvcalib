@@ -343,24 +343,28 @@ def main():
     parser = Setting.generate_parser(defaults, parents=[conf_parser])
     args = parser.parse_args(remaining_argv)
 
-    # save settings if prompted to do so
-    if args.save_settings and args.settings_file:
-        setting_dict = vars(args)
-        file_stream = open(args.settings_file, "w", encoding="utf-8")
-        del setting_dict[Setting.save_settings.name]
-        del setting_dict[Setting.settings_file.name]
-        dump(setting_dict, file_stream, Dumper=Dumper)
-        file_stream.close()
-
     # process "special" setting values
     if args.folder == "!settings_file_location":
         if args.settings_file and osp.isfile(args.settings_file):
             args.folder = osp.dirname(args.settings_file)
 
+    # save settings if prompted to do so
+    if args.save_settings and args.settings_file:
+        setting_dict = vars(args)
+        file_stream = open(args.settings_file, "w", encoding="utf-8")
+        file_name = setting_dict[Setting.save_settings.name]
+        del setting_dict[Setting.save_settings.name]
+        del setting_dict[Setting.settings_file.name]
+        dump(setting_dict, file_stream, Dumper=Dumper)
+        file_stream.close()
+        setting_dict[Setting.save_settings.name] = file_name
+        setting_dict[Setting.settings_file.name] = True
+
+
     if args.unsynced:
         app = ApplicationUnsynced(args)
         app.gather_frame_data()
-        app.calibrate_time_reprojection()
+        app.calibrate_time_reprojection(save_data=True)
     else:
         app = ApplicationSynced(args)
         app.gather_frame_data()

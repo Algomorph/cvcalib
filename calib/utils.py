@@ -77,7 +77,7 @@ def calibrate_wrapper(camera, object_points,
                       use_tangential=False,
                       use_thin_prism=False,
                       fix_radial=False,
-                      fix_thin_prism = False,
+                      fix_thin_prism=False,
                       max_iterations=30,
                       use_existing_guess=False,
                       test=False):

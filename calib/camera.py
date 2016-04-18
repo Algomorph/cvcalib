@@ -25,18 +25,25 @@ import numpy as np
 from lxml import etree
 import math
 
+
 def homogenize_4vec(vec):
     return np.array([vec[0] / vec[3], vec[1] / vec[3], vec[2] / vec[3], 1.0]).T
 
 
 class Pose(object):
-    def __init__(self, transform, inverse_transform=None, rotation_vector=None, translation_vector=None):
-        self.T = transform
-        if translation_vector is None:
-            translation_vector = transform[0:3, 3].reshape(3, 1)
-        if rotation_vector is None:
-            rot_mat = transform[0:3, 0:3]
-            rotation_vector = cv2.Rodrigues(rot_mat)[0]
+    def __init__(self, transform=None, inverse_transform=None, rotation_vector=None, translation_vector=None):
+        if transform is None:
+            if translation_vector is None or rotation_vector is None:
+                raise (ValueError("Expecting either the transform matrix or both the rotation & translation vector"))
+            rotation_matrix = cv2.Rodrigues(rotation_vector)[0]
+            self.T = np.vstack((np.append(rotation_matrix, translation_vector, 1), [0, 0, 0, 1]))
+        else:
+            self.T = transform
+            if translation_vector is None:
+                translation_vector = transform[0:3, 3].reshape(3, 1)
+            if rotation_vector is None:
+                rot_mat = transform[0:3, 0:3]
+                rotation_vector = cv2.Rodrigues(rot_mat)[0]
         if inverse_transform is None:
             rot_mat = cv2.Rodrigues(rotation_vector)[0]
             rot_mat_inv = rot_mat.T
@@ -59,7 +66,7 @@ class Pose(object):
         p1 = self.T.dot(unit_vector)
         p2 = other_pose.T.dot(unit_vector)
         # no need to homogenize, since the last entry will end up being one anyway
-        return np.linalg.norm(p1 - p2)# it will also not contrubute to the norm, i.e. 1 - 1 = 0
+        return np.linalg.norm(p1 - p2)  # it will also not contrubute to the norm, i.e. 1 - 1 = 0
 
     @staticmethod
     def invert_pose_matrix(T):
@@ -204,7 +211,7 @@ class Camera(object):
         For traversing the video backwards.
         """
         cur_frame_ix = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
-        if (cur_frame_ix == 0):
+        if cur_frame_ix == 0:
             self.more_frames_remain = False
             self.frame = None
             return
@@ -241,13 +248,8 @@ class Camera(object):
         retval, rvec, tvec = cv2.solvePnPRansac(object_points, self.current_image_points,
                                                 self.intrinsics.intrinsic_mat, self.intrinsics.distortion_coeffs,
                                                 flags=cv2.SOLVEPNP_ITERATIVE)[0:3]
-        if (retval):
-            R = cv2.Rodrigues(rvec)[0]
-            T = np.vstack((np.append(R, tvec, 1), [0, 0, 0, 1]))
-            R_inv = R.T
-            tvec_inv = -R_inv.dot(tvec)
-            T_inv = np.vstack((np.append(R_inv, tvec_inv, 1), [0, 0, 0, 1]))
-            self.poses.append(Pose(T, T_inv, rvec, tvec))
+        if retval:
+            self.poses.append(Pose(rotation_vector=rvec, translation_vector=tvec))
 
         else:
             self.poses.append(None)
@@ -267,10 +269,10 @@ class Camera(object):
     def add_corners(self, i_frame, criteria_subpix, frame_folder_path, save_image):
         grey_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
         cv2.cornerSubPix(grey_frame, self.current_image_points, (11, 11), (-1, -1), criteria_subpix)
-        if (save_image):
-            fname = (os.path.join(frame_folder_path,
-                                  "{0:s}{1:04d}{2:s}".format(self.name, i_frame, ".png")))
-            cv2.imwrite(fname, self.frame)
+        if save_image:
+            png_path = (os.path.join(frame_folder_path,
+                                     "{0:s}{1:04d}{2:s}".format(self.name, i_frame, ".png")))
+            cv2.imwrite(png_path, self.frame)
         self.usable_frames[i_frame] = len(self.imgpoints)
         self.imgpoints.append(self.current_image_points)
 

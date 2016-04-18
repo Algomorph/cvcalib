@@ -97,7 +97,7 @@ def load_calibration_intervals(archive, cameras, verbose=True):
         ix_cam = 0
         for camera in cameras:
             camera.calibration_interval = tuple(ranges[ix_cam])
-            ix_cam +=1
+            ix_cam += 1
     else:
         raise ValueError("No calibration intervals found in the provided archive.")
 

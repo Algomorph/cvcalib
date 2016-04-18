@@ -49,7 +49,6 @@ def _error_and_time_to_xml(element, error, time):
     time_element.text = str(time)
 
 
-# TODO: make Camera class XML-serializable, with filename as output
 # TODO: replace the index member of CameraIntrinsics & CameraExtrinsics with a calibration timestamp & all ensuing consequences
 # TODO: make CameraIntrinsics & CameraExtrinsics nested inner classes of Camera & rename them to Intrinsics & Extrinsics, respectively
 class CameraIntrinsics(object):

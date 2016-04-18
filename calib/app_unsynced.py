@@ -27,7 +27,7 @@ from calib.app import Application
 from calib.camera import Camera, Pose
 from calib.data import CameraIntrinsics
 from calib.rig import StereoRig
-from calib.utils import stereo_calibrate
+from calib.utils import stereo_calibrate, calibrate_wrapper
 import logging, sys
 
 
@@ -115,7 +115,8 @@ class ApplicationUnsynced(Application):
                         print("\nSampling every {:d} frames within {:s}, backwards."
                               .format(-sample_interval_frames, str((frame_range[1], frame_range[0]))))
                     else:
-                        print("\nSampling every {:d} frames within {:s}.".format(sample_interval_frames, str(frame_range)))
+                        print("\nSampling every {:d} frames within {:s}.".format(sample_interval_frames,
+                                                                                 str(frame_range)))
                 for i_frame in range(frame_range[0], frame_range[1], sample_interval_frames):
                     camera.read_at_pos(i_frame)
                     if verbose:
@@ -144,10 +145,10 @@ class ApplicationUnsynced(Application):
         for camera in self.cameras:
 
             if self.args.time_range_hint is None:
-                rough_seek_range = (0, camera.frame_count-0)
+                rough_seek_range = (0, camera.frame_count - 0)
             else:
                 rough_seek_range = (round(max(0, camera.fps * self.args.time_range_hint[0])),
-                                    round(min(camera.fps * self.args.time_range_hint[1], camera.frame_count-0)))
+                                    round(min(camera.fps * self.args.time_range_hint[1], camera.frame_count - 0)))
 
             if verbose:
                 print("Performing initial rough scan of {0:s} for calibration board...".format(camera.name))
@@ -258,7 +259,7 @@ class ApplicationUnsynced(Application):
                     if add_corners:
                         camera.add_corners(i_frame, self.criteria_subpix,
                                            self.full_frame_folder_path, self.args.save_images)
-                        camera.find_current_pose(self.board_object_corner_set)
+                        #camera.find_current_pose(self.board_object_corner_set)
 
                         cur_corners = camera.imgpoints[len(camera.imgpoints) - 1]
                         if len(still_streak) > 0:
@@ -297,6 +298,29 @@ class ApplicationUnsynced(Application):
 
         if self.args.manual_filter:
             cv2.destroyAllWindows()
+
+    def find_camera_poses(self, verbose=False):
+        for camera in self.cameras:
+            camera.poses = []
+            object_points = [self.board_object_corner_set for dummy in range(len(camera.imgpoints))]
+            rotations, translations = calibrate_wrapper(camera,
+                                                        object_points,
+                                                        self.args.use_rational_model,
+                                                        self.args.use_tangential_coeffs,
+                                                        self.args.use_thin_prism,
+                                                        fix_radial=True,
+                                                        fix_thin_prism=True,
+                                                        max_iterations=1,
+                                                        use_existing_guess=True,
+                                                        test=True)
+            if verbose:
+                print("Pose reprojection error for camera {:s}: {:.4f}".format(camera.name, camera.intrinsics.error))
+            for ix_pose in range(len(rotations)):
+                translation = translations[ix_pose]
+                rotation = rotations[ix_pose]
+                pose = Pose(rotation_vector=rotation, translation_vector=translation)
+                camera.poses.append(pose)
+
 
     @staticmethod
     def __aux_streak_within(source_streak, target_streak):
@@ -337,7 +361,7 @@ class ApplicationUnsynced(Application):
         # cut at least this number of frames off the range bounds, because
         # some frames in the beginning or end of the ranges will have some minor board motion
         cutoff = 1
-        for j_vid in range(1,len(self.cameras)):
+        for j_vid in range(1, len(self.cameras)):
             target_cam = self.cameras[j_vid]
             overlaps = source_cam.still_streak_overlaps[j_vid]
 
@@ -386,7 +410,7 @@ class ApplicationUnsynced(Application):
     def calibrate_time_reprojection(self, sample_count=1000, verbose=2, save_data=False, min_offset_datapoints=10):
         if type(verbose) == bool:
             verbose = int(verbose)
-        logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+        logging.basicConfig(stream=sys.stderr)#, level=logging.DEBUG)
 
         max_offset = self.args.max_frame_offset
         source_camera = self.cameras[0]
@@ -406,7 +430,7 @@ class ApplicationUnsynced(Application):
             usable_frames = list(source_camera.usable_frames.keys())
             usable_frames.sort()
 
-            for i_usable_frame in range(start, len(usable_frames)-start-1, sampling_interval):
+            for i_usable_frame in range(start, len(usable_frames) - start - 1, sampling_interval):
                 usable_frame_num = usable_frames[i_usable_frame]
                 sample_frame_numbers.append(usable_frame_num)
                 source_pose = source_camera.poses[source_camera.usable_frames[usable_frame_num]]
@@ -415,7 +439,7 @@ class ApplicationUnsynced(Application):
                 print("Sample count: {:d}".format(len(sample_frame_numbers)))
                 # DEBUG LINE
                 logging.debug("Calib interval: {:s}, first usable frame: {:d}"
-                              .format(str(source_camera.calibration_interval),usable_frames[0]))
+                              .format(str(source_camera.calibration_interval), usable_frames[0]))
                 logging.debug("Sample frames: {:s}".format(str(sample_frame_numbers)))
         else:
             sample_frame_numbers = list(source_camera.usable_frames.keys())
@@ -423,6 +447,7 @@ class ApplicationUnsynced(Application):
             source_poses = source_camera.poses
             sample_count = len(sample_frame_numbers)
 
+        offsets = [0]
         for target_camera in self.cameras[1:]:
             if verbose:
                 print("========================================================")
@@ -441,8 +466,6 @@ class ApplicationUnsynced(Application):
             offset_mean_pose_diffs = np.zeros(possible_offset_count, dtype=np.float64)
             offset_pt_rms = np.zeros(possible_offset_count, dtype=np.float64)
 
-            # DEBUG LINE VERSION:
-            # offset_range = range(1350, 1400)
             offset_range = range(-max_offset, max_offset + 1)
 
             best_offset = 0
@@ -453,7 +476,7 @@ class ApplicationUnsynced(Application):
                 if verbose > 1:
                     print("Processing offset {:d}. ".format(offset), end="")
 
-                ix_offset = offset+max_offset
+                ix_offset = offset + max_offset
 
                 # per-offset cumulative things
                 offset_comparison_count = 0
@@ -542,7 +565,7 @@ class ApplicationUnsynced(Application):
                                                       distCoeffs=target_camera.intrinsics.distortion_coeffs)[0]
 
                                 # np.linalg.norm(target_points - est_target_points, axis=2).flatten()
-                                cumulative_squared_point_error += ((target_points - est_target_points)**2).sum()
+                                cumulative_squared_point_error += ((target_points - est_target_points) ** 2).sum()
                                 pose_count += 1
                                 point_count += len(self.board_object_corner_set)
 
@@ -572,6 +595,7 @@ class ApplicationUnsynced(Application):
                         best_offset_rms = rms
                 if verbose > 1:
                     print("\n", end="")
+
             if save_data:
                 np.savez_compressed(os.path.join(self.args.folder, target_camera.name + "_tc_data.npz"),
                                     sample_counts=offset_sample_counts,
@@ -586,6 +610,9 @@ class ApplicationUnsynced(Application):
             if verbose:
                 print("Offset for {:s}-->{:s}: {d}, RMS error: {:.5f}".format(source_camera.name, target_camera.name,
                                                                               best_offset, best_offset_rms))
+            offsets.append(best_offset)
+        if save_data:
+            np.savetxt('autooffset.txt', offsets)
 
     def gather_frame_data(self, verbose=True):
         if self.args.load_calibration_intervals:
@@ -623,6 +650,7 @@ class ApplicationUnsynced(Application):
 
         else:
             self.run_capture(verbose)
+            self.find_camera_poses(verbose)
             if self.args.save_frame_data:
                 cio.save_corners(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
                                  self.cameras,
