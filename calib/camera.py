@@ -250,7 +250,6 @@ class Camera(object):
                                                 flags=cv2.SOLVEPNP_ITERATIVE)[0:3]
         if retval:
             self.poses.append(Pose(rotation_vector=rvec, translation_vector=tvec))
-
         else:
             self.poses.append(None)
         return retval

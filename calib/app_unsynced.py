@@ -259,7 +259,7 @@ class ApplicationUnsynced(Application):
                     if add_corners:
                         camera.add_corners(i_frame, self.criteria_subpix,
                                            self.full_frame_folder_path, self.args.save_images)
-                        #camera.find_current_pose(self.board_object_corner_set)
+                        # camera.find_current_pose(self.board_object_corner_set)
 
                         cur_corners = camera.imgpoints[len(camera.imgpoints) - 1]
                         if len(still_streak) > 0:
@@ -301,6 +301,8 @@ class ApplicationUnsynced(Application):
 
     def find_camera_poses(self, verbose=False):
         for camera in self.cameras:
+            if verbose:
+                print("Finding poses of camera {:s} ... (this may take awhile)".format(camera.name))
             camera.poses = []
             object_points = [self.board_object_corner_set for dummy in range(len(camera.imgpoints))]
             rotations, translations = calibrate_wrapper(camera,
@@ -650,7 +652,7 @@ class ApplicationUnsynced(Application):
 
         else:
             self.run_capture(verbose)
-            self.find_camera_poses(verbose)
+            # self.find_camera_poses(verbose)
             if self.args.save_frame_data:
                 cio.save_frame_data(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
                                     self.cameras,
