@@ -86,8 +86,4 @@ Calibration experts: skip this section.
 
 The provided tiny calibration board will only work well for calibrating at short distances (within half a meter or so). I recommend a larger calibration board, with larger and more squares for greater distances. Any calibration board should be snugly mounted on a completely flat, unbending surface. During calibration, aim for variety of angles and positions (including depth) of the board within the image frame. Calibration of cameras with autofocus is not supported, since the algorithm assumes camera intrinsics (inculding focal distance) are static. On such cameras, you have to find a way to fix the focus. Also, keep in mind, calibration process does not yield acutal focal length (look to your camera manufacturer for that information, as well as the actual metric size of the image sensor).
 
-###OpenCV-related caveats
-
-OpenCV 3 python bindings are not yet in very good shape. Hence, the preview options (which show a rectified image or stereo image pair) do not work at the time this README was last updated. Unfortunately, neither does the fisheye distortion model. At this moment in time, there are open bugs filed in OpenCV issue tracker awaiting to be addressed, so stay put.
-
 **Happy calibration!**
