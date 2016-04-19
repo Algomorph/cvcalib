@@ -73,7 +73,7 @@ class Application(object):
                                                               str(datetime.datetime.now())[:-7])
                                                        .replace(" ", "-"))
 
-        self.videos = [(Video(os.path.join(args.folder, video_filename)) for video_filename in args.videos)]
+        self.videos = [Video(os.path.join(args.folder, video_filename)) for video_filename in args.videos]
         if args.input_calibration is not None:
             intrinsic_arr = []
             # load calibration files

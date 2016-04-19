@@ -107,17 +107,17 @@ class ApplicationUnsynced(Application):
             video = self.videos[ix_vid]
 
             if self.args.time_range_hint is None:
-                rough_seek_range = (0, camera.frame_count - 0)
+                rough_seek_range = (0, video.frame_count - 0)
             else:
-                rough_seek_range = (round(max(0, camera.fps * self.args.time_range_hint[0])),
-                                    round(min(camera.fps * self.args.time_range_hint[1], camera.frame_count - 0)))
+                rough_seek_range = (round(max(0, video.fps * self.args.time_range_hint[0])),
+                                    round(min(video.fps * self.args.time_range_hint[1], camera.frame_count - 0)))
 
             if verbose:
                 print("Performing initial rough scan of {0:s} for calibration board...".format(camera.name))
 
             found = False
             # find approximate start and end of calibration
-            sample_interval_frames = camera.frame_count // 2
+            sample_interval_frames = video.frame_count // 2
             failed_attempts = 0
 
             while not found and sample_interval_frames > 4:
