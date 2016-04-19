@@ -4,7 +4,7 @@ Powerful console application for calibration (including stereo calibration) of c
 
 ###News Update
 
-The master now the upstream development branch. Use tags checkout more stable versions.
+The master now the upstream development branch. Use tags to get more stable versions.
 
 ###What the heck is *sync_based_on_audio.py*?
 
