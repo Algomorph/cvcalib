@@ -1,5 +1,5 @@
 '''
-/home/algomorph/Factory/calib_video_opencv/sync/recode.py.
+/home/algomorph/Factory/calib_video_opencv/audiosync/recode.py.
 Created on Feb 11, 2016.
 @author: Gregory Kramida
 @licence: Apache v2

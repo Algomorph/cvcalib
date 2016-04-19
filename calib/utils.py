@@ -1,4 +1,4 @@
-'''
+"""
 Created on Nov 23, 2015
 @author: Gregory Kramida
 @licence: Apache v2
@@ -16,128 +16,259 @@ distributed under the License is distributed on an "AS IS" BASIS,
 WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
-'''
+"""
 
 import numpy as np
 import time
-import calib.data as data
-import cv2#@UnresolvedImport
+import cv2
 
 
-def calibrate(objpoints, imgpoints, flags, criteria, calibration_info, verbose = False):
-    #OpenCV prefers the width x height as "Size" to height x width
-    frame_dims = (calibration_info.resolution[1],calibration_info.resolution[0])
-    start = time.time()
-    calibration_info.error, calibration_info.intrinsic_mat, calibration_info.distortion_coeffs =\
-    cv2.calibrateCamera(objpoints, imgpoints, frame_dims, 
-                        calibration_info.intrinsic_mat, 
-                        calibration_info.distortion_coeffs, 
-                        flags=flags,criteria = criteria)[0:3]
-    end = time.time()
-    calibration_info.time = end - start
-    return calibration_info
-
-
-def generate_preview(stereo_calib_info, test_im_left, test_im_right):
+def undistort_stereo(stereo_rig, test_im_left, test_im_right, size_factor):
     im_size = test_im_left.shape
-    new_size = (int(im_size[1]*1.5),int(im_size[0]*1.5))
-    R1, R2, P1, P2 = \
-    cv2.stereoRectify(cameraMatrix1=stereo_calib_info.videos[0].intrinsic_mat, 
-                      distCoeffs1  =stereo_calib_info.videos[0].distortion_coeffs, 
-                      cameraMatrix2=stereo_calib_info.videos[1].intrinsic_mat,
-                      distCoeffs2  =stereo_calib_info.videos[1].distortion_coeffs, 
-                      imageSize=im_size, 
-                      R=stereo_calib_info.rotation,
-                      T=stereo_calib_info.translation, 
-                      flags=cv2.CALIB_ZERO_DISPARITY, 
-                      newImageSize=new_size)[0:4]
-    map1x, map1y = cv2.initUndistortRectifyMap(stereo_calib_info.videos[0].intrinsic_mat, 
-                                               stereo_calib_info.videos[0].distortion_coeffs, 
-                                               R1, P1, new_size, cv2.CV_32FC1)
-    map2x, map2y = cv2.initUndistortRectifyMap(stereo_calib_info.videos[1].intrinsic_mat, 
-                                               stereo_calib_info.videos[1].distortion_coeffs, 
-                                               R2, P2, new_size, cv2.CV_32FC1)
+    new_size = (int(im_size[1] * size_factor), int(im_size[0] * size_factor))
+    rotation1, rotation2, pose1, pose2 = \
+        cv2.stereoRectify(cameraMatrix1=stereo_rig.cameras[0].intrinsic_mat,
+                          distCoeffs1=stereo_rig.cameras[0].distortion_coeffs,
+                          cameraMatrix2=stereo_rig.cameras[1].intrinsic_mat,
+                          distCoeffs2=stereo_rig.cameras[1].distortion_coeffs,
+                          imageSize=im_size,
+                          R=stereo_rig.rotation,
+                          T=stereo_rig.translation,
+                          flags=cv2.CALIB_ZERO_DISPARITY,
+                          newImageSize=new_size)[0:4]
+    map1x, map1y = cv2.initUndistortRectifyMap(stereo_rig.cameras[0].intrinsic_mat,
+                                               stereo_rig.cameras[0].distortion_coeffs,
+                                               rotation1, pose1, new_size, cv2.CV_32FC1)
+    map2x, map2y = cv2.initUndistortRectifyMap(stereo_rig.cameras[1].intrinsic_mat,
+                                               stereo_rig.cameras[1].distortion_coeffs,
+                                               rotation2, pose2, new_size, cv2.CV_32FC1)
     rect_left = cv2.remap(test_im_left, map1x, map1y, cv2.INTER_LINEAR)
     rect_right = cv2.remap(test_im_right, map2x, map2y, cv2.INTER_LINEAR)
     return rect_left, rect_right
 
-def stereo_calibrate(limgpoints,rimgpoints,objpoints,
-                     resolution,
-                     use_fisheye = False,
-                     use_rational_model = True,
-                     use_tangential = False,
-                     precalibrate_solo = True,
-                     stereo_only = False, 
-                     max_iters = 30,
-                     initial_calibration = None):
+
+def __calibrate_intrinsics(camera, video, object_points, flags, criteria):
+    # OpenCV prefers [width x height] as "Size" to [height x width]
+    frame_dims = (video.frame_dims[1], video.frame_dims[0])
+    camera.intrinsics.resolution = video.frame_dims
+    start = time.time()
+    camera.intrinsics.error, camera.intrinsics.intrinsic_mat, camera.intrinsics.distortion_coeffs, \
+    rotation_vectors, translation_vectors = \
+        cv2.calibrateCamera(object_points, video.image_points, frame_dims,
+                            camera.intrinsics.intrinsic_mat,
+                            camera.intrinsics.distortion_coeffs,
+                            flags=flags, criteria=criteria)
+    end = time.time()
+    camera.intrinsics.time = end - start
+    return rotation_vectors, translation_vectors
+
+
+def fix_radial_flags(flags):
+    flags = flags | cv2.CALIB_FIX_K1
+    flags = flags | cv2.CALIB_FIX_K2
+    flags = flags | cv2.CALIB_FIX_K3
+    flags = flags | cv2.CALIB_FIX_K4
+    flags = flags | cv2.CALIB_FIX_K5
+    flags = flags | cv2.CALIB_FIX_K6
+    return flags
+
+
+def calibrate_intrinsics(camera, video,
+                         object_points,
+                         use_rational_model=True,
+                         use_tangential=False,
+                         use_thin_prism=False,
+                         fix_radial=False,
+                         fix_thin_prism=False,
+                         max_iterations=30,
+                         use_existing_guess=False,
+                         test=False):
     flags = 0
-    
-    signature = time.strftime("%Y%m%d-%H%M%S",time.localtime())
-    if initial_calibration != None:
-        result = initial_calibration
-        flags += cv2.CALIB_USE_INTRINSIC_GUESS
-        result.id = signature
+    if test:
+        flags = flags | cv2.CALIB_USE_INTRINSIC_GUESS
+        # fix everything
+        flags = flags | cv2.CALIB_FIX_PRINCIPAL_POINT
+        flags = flags | cv2.CALIB_FIX_ASPECT_RATIO
+        flags = flags | cv2.CALIB_FIX_FOCAL_LENGTH
+        # apparently, we can't fix the tangential distance. What the hell? Zero it out.
+        flags = flags | cv2.CALIB_ZERO_TANGENT_DIST
+        flags = fix_radial_flags(flags)
+        flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
+        criteria = (cv2.TERM_CRITERIA_MAX_ITER, 1, 0)
     else:
-        result = data.StereoExtrinsics((data.CameraIntrinsics(resolution, index=0),
-                                             data.CameraIntrinsics(resolution, index=1)), 
-                                             _id=signature)
-    #shorten notation later in the code
-    cam0 = result.intrinsics[0]
-    cam1 = result.intrinsics[1]
-    
-    #OpenCV prefers the Width x Height as "Size" to Height x Width
-    frame_dims = (resolution[1],resolution[0])
-    
-    criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, max_iters, 2.2204460492503131e-16)
-    
-    if(stereo_only):
-        if(initial_calibration == None):
-            raise ValueError("Initial calibration required when calibrating only stereo parameters.")
+        if fix_radial:
+            flags = fix_radial_flags(flags)
+        if fix_thin_prism:
+            flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
+        criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, max_iterations,
+                    2.2204460492503131e-16)
+    if use_existing_guess:
+        flags = flags | cv2.CALIB_USE_INTRINSIC_GUESS
+    if not use_tangential:
+        flags = flags | cv2.CALIB_ZERO_TANGENT_DIST
+    if use_rational_model:
+        flags = flags | cv2.CALIB_RATIONAL_MODEL
+        if len(camera.intrinsics.distortion_coeffs) < 8:
+            camera.intrinsics.distortion_coeffs.resize((8,))
+    if use_thin_prism:
+        flags = flags | cv2.CALIB_THIN_PRISM_MODEL
+        if len(camera.intrinsics.distortion_coeffs) != 12:
+            camera.intrinsics.distortion_coeffs = np.resize(camera.intrinsics.distortion_coeffs, (12,))
+    return __calibrate_intrinsics(camera, video, object_points, flags, criteria)
+
+
+def calibrate_stereo(rig, videos,
+                     object_points,
+                     use_fisheye=False,
+                     use_rational_model=True,
+                     use_tangential=False,
+                     use_thin_prism=False,
+                     fix_radial=False,
+                     fix_thin_prism=False,
+                     precalibrate_solo=True,
+                     stereo_only=False,
+                     max_iterations=30,
+                     use_intrinsic_guess=False):
+    # timestamp of calibration for record
+    signature = time.strftime("%Y%m%d-%H%M%S", time.localtime())
+    rig.id = signature
+
+    # shorten notation later in the code
+    vid0 = videos[0]
+    vid1 = videos[1]
+
+    cam0 = rig.cameras[0]
+    cam1 = rig.cameras[1]
+    intrinsics0 = rig.cameras[0].intrinsics
+    intrinsics1 = rig.cameras[1].intrinsics
+    intrinsics0.resolution = vid0.frame_dims
+    intrinsics1.resolution = vid1.frame_dims
+
+    # OpenCV prefers the Width x Height as "Size" to Height x Width
+    frame_dims = (vid0.frame_dims[1], vid0.frame_dims[0])
+
+    # Global flags
+    flags = 0
+
+    if use_intrinsic_guess:
+        flags = flags | cv2.CALIB_USE_INTRINSIC_GUESS
+
+    criteria = (cv2.TERM_CRITERIA_MAX_ITER + cv2.TERM_CRITERIA_EPS, max_iterations, 2.2204460492503131e-16)
+
+    if stereo_only:
         flags = flags | cv2.CALIB_FIX_INTRINSIC
-    
+        precalibrate_solo = False
+
     if use_fisheye:
-        if initial_calibration == None:  
-            d0 = np.zeros(4,np.float64)
-            d1 = np.zeros(4,np.float64)
-        else:
-            d0 = cam0.distortion_coeffs
-            d1 = cam1.distortion_coeffs
-        #this hack is necessary to get around incorrect argument handling for fisheye.stereoCalibrate
-        #function in OpenCV
-        obp2 = [np.transpose(pointset,(1,0,2)).astype(np.float64) for pointset in objpoints]
-        lpts2 = [np.transpose(pointset,(1,0,2)).astype(np.float64) for pointset in limgpoints]
-        rpts2 = [np.transpose(pointset,(1,0,2)).astype(np.float64) for pointset in rimgpoints]
-        result.error, cam0.intrinsic_mat, cam0.distortion_coeffs, cam1.intrinsic_mat,\
-        cam1.distortion_coeffs, result.rotation, result.translation \
-        = cv2.fisheye.stereoCalibrate(obp2, lpts2, rpts2, 
-                                      cam0.intrinsic_mat,d0, 
-                                      cam1.intrinsic_mat,d1, 
-                                      imageSize=frame_dims,
-                                      flags=flags,
-                                      criteria=criteria)
+        d0 = intrinsics0.distortion_coeffs
+        d1 = intrinsics1.distortion_coeffs
+        # this hack is necessary to get around incorrect argument handling for fisheye.stereoCalibrate
+        # function in OpenCV
+        object_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64)
+                                    for point_set in object_points]
+        left_image_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64) for point_set in
+                                        vid0.image_points]
+        right_image_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64) for point_set in
+                                         vid1.image_points]
+        rig.error, intrinsics0.intrinsic_mat, intrinsics0.distortion_coeffs, intrinsics1.intrinsic_mat, \
+        intrinsics1.distortion_coeffs, rig.rotation, rig.translation \
+            = cv2.fisheye.stereoCalibrate(object_points_transposed,
+                                          left_image_points_transposed,
+                                          right_image_points_transposed,
+                                          intrinsics0.intrinsic_mat, d0,
+                                          intrinsics1.intrinsic_mat, d1,
+                                          imageSize=frame_dims,
+                                          flags=flags,
+                                          criteria=criteria)
     else:
         if not use_tangential:
-            flags += cv2.CALIB_ZERO_TANGENT_DIST
+            flags = flags | cv2.CALIB_ZERO_TANGENT_DIST
         if use_rational_model:
-            flags += cv2.CALIB_RATIONAL_MODEL
-        if(precalibrate_solo):
-            cam0 = calibrate(objpoints, limgpoints, flags, criteria, cam0)
-            cam1 = calibrate(objpoints, rimgpoints, flags, criteria, cam1)
+            flags = flags | cv2.CALIB_RATIONAL_MODEL
+            # resize to accommodate sought number of coefficients
+            if len(intrinsics0.distortion_coeffs) < 8:
+                intrinsics0.distortion_coeffs.resize((8,))
+            if len(intrinsics1.distortion_coeffs) < 8:
+                intrinsics1.distortion_coeffs.resize((8,))
+        if use_thin_prism:
+            flags = flags | cv2.CALIB_THIN_PRISM_MODEL
+            # the thin prism model currently demands exactly 12 coefficients
+            if len(intrinsics0.distortion_coeffs) != 12:
+                intrinsics0.distortion_coeffs = np.resize(intrinsics0.distortion_coeffs, (12,))
+            if len(intrinsics1.distortion_coeffs) != 12:
+                intrinsics1.distortion_coeffs = np.resize(intrinsics1.distortion_coeffs, (12,))
+        if fix_radial:
+            if fix_radial:
+                flags = fix_radial_flags(flags)
+            if fix_thin_prism:
+                flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
+
+        if precalibrate_solo:
+            __calibrate_intrinsics(cam0, vid0, object_points, flags, criteria)
+            __calibrate_intrinsics(cam1, vid1, object_points, flags, criteria)
             flags = flags | cv2.CALIB_FIX_INTRINSIC
-        
+
         start = time.time()
-        result.error,\
-        cam0.intrinsic_mat, cam0.distortion_coeffs,\
-        cam1.intrinsic_mat, cam1.distortion_coeffs,\
-        result.rotation, result.translation, result.essential_mat, result.fundamental_mat\
-        = cv2.stereoCalibrate(objpoints,limgpoints,rimgpoints, 
-                              cameraMatrix1 = cam0.intrinsic_mat, 
-                              distCoeffs1   = cam0.distortion_coeffs, 
-                              cameraMatrix2 = cam1.intrinsic_mat, 
-                              distCoeffs2   = cam1.distortion_coeffs,
-                              imageSize = frame_dims,
-                              flags = flags,
-                              criteria = criteria)
+        cam1.extrinsics.error, \
+        intrinsics0.intrinsic_mat, intrinsics0.distortion_coeffs, \
+        intrinsics1.intrinsic_mat, intrinsics1.distortion_coeffs, \
+        cam1.extrinsics.rotation, cam1.extrinsics.translation, \
+        cam1.extrinsics.essential_mat, cam1.extrinsics.fundamental_mat \
+            = cv2.stereoCalibrate(object_points,
+                                  vid0.image_points,
+                                  vid1.image_points,
+                                  cameraMatrix1=intrinsics0.intrinsic_mat,
+                                  distCoeffs1=intrinsics0.distortion_coeffs,
+                                  cameraMatrix2=intrinsics1.intrinsic_mat,
+                                  distCoeffs2=intrinsics1.distortion_coeffs,
+                                  imageSize=frame_dims,
+                                  flags=flags,
+                                  criteria=criteria)
         end = time.time()
-        result.time = end - start 
-    return result
+        cam1.extrinsics.time = end - start
+
+
+def calibrate(rig, videos,
+              object_points,
+              use_fisheye=False,
+              use_rational_model=True,
+              use_tangential=False,
+              use_thin_prism=False,
+              fix_radial=False,
+              fix_thin_prism=False,
+              precalibrate_solo=True,
+              extrinsics_only=False,
+              max_iterations=30,
+              use_intrinsic_guess=False,
+              test=False):
+    if len(rig.cameras) != len(videos):
+        raise ValueError("The number of cameras in the rig must be equal to the number of videos.")
+    if len(rig.cameras) == 1:
+        camera = rig.cameras[0]
+        video = videos[0]
+        calibrate_intrinsics(camera, video,
+                             object_points,
+                             use_rational_model,
+                             use_tangential,
+                             use_thin_prism,
+                             fix_radial,
+                             fix_thin_prism,
+                             max_iterations,
+                             use_intrinsic_guess,
+                             test)
+    elif len(rig.cameras) == 2:
+        calibrate_stereo(rig, videos,
+                         object_points,
+                         use_fisheye,
+                         use_rational_model,
+                         use_tangential,
+                         use_thin_prism,
+                         fix_radial,
+                         fix_thin_prism,
+                         precalibrate_solo,
+                         extrinsics_only,
+                         max_iterations,
+                         use_intrinsic_guess)
+    else:
+        raise NotImplementedError(
+            "Support for rigs with arbitrary number of cameras is not yet implemented. Please use 1 or two cameras.")
