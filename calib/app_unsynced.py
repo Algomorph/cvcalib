@@ -24,10 +24,11 @@ import numpy as np
 import math
 import calib.io as cio
 from calib.app import Application
-from calib.camera import Camera, Pose
-from calib.data import CameraIntrinsics
-from calib.rig import StereoRig
-from calib.utils import stereo_calibrate, calibrate_wrapper
+from calib.geom import Pose
+from calib.camera import Camera
+from calib.video import Video
+from calib.rig import Rig
+from calib.utils import calibrate_stereo, calibrate_intrinsics
 import logging, sys
 
 
@@ -56,13 +57,15 @@ class ApplicationUnsynced(Application):
         for calib_file in args.input_calibration:
             initial_calibration.append(cio.load_opencv_calibration(os.path.join(args.folder, calib_file)))
 
+        # TODO Rig can now have an arbitrary number of cameras. Accomodate.
+
         # sanity checks & calibration arrangement
-        if type(initial_calibration[0]) == StereoRig:
+        if type(initial_calibration[0]) == Rig:
             for calibration_info in initial_calibration:
-                if type(calibration_info) != StereoRig:
+                if type(calibration_info) != Rig:
                     # TODO combine with the other thing... remove type restriction, just keep track of the total number
                     raise TypeError("For stereo, all calibration files should contain stereo information. Expecting: " +
-                                    str(StereoRig) + ". Got: " + str(type(calibration_info)))
+                                    str(Rig) + ". Got: " + str(type(calibration_info)))
                 intrinsic_arr += calibration_info.intrinsics  # aggregate intrinsics into a single array
             if len(args.videos) % 2 != 0:
                 raise ValueError("Provided stereo input calibration files: expecting an even " +
@@ -75,18 +78,18 @@ class ApplicationUnsynced(Application):
             for calibration_info in initial_calibration:
                 if type(calibration_info) == Camera:
                     intrinsic_arr.append(calibration_info.intrinsics)
-                elif type(calibration_info) == CameraIntrinsics:
+                elif type(calibration_info) == Camera.Intrinsics:
                     intrinsic_arr.append(calibration_info)
                 else:
                     raise RuntimeError("Unsupported calibration file format.")
 
         ix_video = 0
         self.cameras = []
+        self.videos = []
         # load videos
         for video_filename in args.videos:
-            self.cameras.append(Camera(os.path.join(args.folder, video_filename),
-                                       index=ix_video,
-                                       intrinsics=intrinsic_arr[ix_video]))
+            self.videos.append(Video(os.path.join(args.folder, video_filename)))
+            self.cameras.append(Camera(intrinsics=intrinsic_arr[ix_video]))
             ix_video += 1
         if len(self.cameras) < 2:
             raise ValueError(
@@ -99,7 +102,7 @@ class ApplicationUnsynced(Application):
             camera.read_at_pos(i_frame)
             if verbose:
                 print('-', end="", flush=True)
-            if camera.approximate_corners(self.board_dims):
+            if camera.try_approximate_corners(self.board_dims):
                 return i_frame
         return -1
 
@@ -121,7 +124,7 @@ class ApplicationUnsynced(Application):
                     camera.read_at_pos(i_frame)
                     if verbose:
                         print('.', end="", flush=True)
-                    if camera.approximate_corners(self.board_dims):
+                    if camera.try_approximate_corners(self.board_dims):
                         frame_range[0] = i_frame
                         miss_count = 0
                     else:
@@ -142,7 +145,9 @@ class ApplicationUnsynced(Application):
 
     def find_calibration_intervals(self, verbose=True):
         start = time.time()
+        ix_vid = 0
         for camera in self.cameras:
+            video = self.videos[ix_vid]
 
             if self.args.time_range_hint is None:
                 rough_seek_range = (0, camera.frame_count - 0)
@@ -165,10 +170,10 @@ class ApplicationUnsynced(Application):
                     for i_frame in range(rough_seek_range[0],
                                          rough_seek_range[1],
                                          sample_interval_frames):
-                        camera.read_at_pos(i_frame)
+                        video.read_at_pos(i_frame)
                         if verbose:
                             print('.', end="", flush=True)
-                        if camera.approximate_corners(self.board_dims):
+                        if video.try_approximate_corners(self.board_dims):
                             calibration_end = calibration_start = i_frame
                             print("Hit at {:d}!".format(i_frame))
                             found = True
@@ -200,12 +205,13 @@ class ApplicationUnsynced(Application):
             if verbose:
                 print("Found calibration frame range for camera {:s} to be within {:s}"
                       .format(camera.name, str(camera.calibration_interval)))
+            ix_vid += 1
 
         end = time.time()
         if verbose:
             print("Total calibration interval seek time: {:.3f} seconds.".format(end - start))
         if self.args.save_calibration_intervals:
-            cio.save_calibration_intervals(self.aux_data_file, self.aux_data_path, self.cameras, verbose=verbose)
+            cio.save_calibration_intervals(self.aux_data_file, self.aux_data_path, self.videos, verbose=verbose)
 
     def __terminate_still_streak(self, streak, longest_streak, still_streaks, verbose=True):
         min_still_streak = self.args.max_frame_offset * 2 + 1
@@ -227,19 +233,18 @@ class ApplicationUnsynced(Application):
         Run capture for each camera separately
         """
         report_interval = 5.0  # seconds
-
-        for camera in self.cameras:
-            i_frame = camera.calibration_interval[0]
+        for video in self.videos:
+            i_frame = video.calibration_interval[0]
             if verbose:
-                print("Capturing calibration board points for camera {0:s}".format(camera.name))
+                print("Capturing calibration board points for camera {0:s}".format(video.name))
 
-            camera.reopen()
+            video.reopen()
             # just in case we're running capture again
-            camera.clear_results()
-            camera.scroll_to_frame(i_frame)
-            total_calibration_frames = camera.calibration_interval[1] - camera.calibration_interval[0]
+            video.clear_results()
+            video.scroll_to_frame(i_frame)
+            total_calibration_frames = video.calibration_interval[1] - video.calibration_interval[0]
             # init capture
-            camera.read_next_frame()
+            video.read_next_frame()
             key = 0
             check_time = time.time()
             longest_still_streak = []
@@ -247,23 +252,23 @@ class ApplicationUnsynced(Application):
             still_streaks = []
             frame_counter = 0
             # TODO: fix still streak acquisition
-            while i_frame < camera.calibration_interval[1] and not (self.args.manual_filter and key == 27):
+            while i_frame < video.calibration_interval[1] and not (self.args.manual_filter and key == 27):
                 add_corners = False
-                if not self.args.frame_number_filter or i_frame in camera.usable_frames:
+                if not self.args.frame_number_filter or i_frame in video.usable_frames:
                     # TODO: add blur filter support to camera class
-                    add_corners = camera.approximate_corners(self.board_dims)
+                    add_corners = video.try_approximate_corners(self.board_dims)
 
                     if self.args.manual_filter and add_corners:
-                        add_corners, key = camera.filter_frame_manually()
+                        add_corners, key = video.filter_frame_manually()
 
                     if add_corners:
-                        camera.add_corners(i_frame, self.criteria_subpix,
+                        video.add_corners(i_frame, self.criteria_subpix,
                                            self.full_frame_folder_path, self.args.save_images)
-                        # camera.find_current_pose(self.board_object_corner_set)
+                        video.find_current_pose(self.board_object_corner_set)
 
-                        cur_corners = camera.imgpoints[len(camera.imgpoints) - 1]
+                        cur_corners = video.image_points[len(video.image_points) - 1]
                         if len(still_streak) > 0:
-                            prev_corners = camera.imgpoints[len(camera.imgpoints) - 2]
+                            prev_corners = video.image_points[len(video.image_points) - 2]
                             mean_px_dist_to_prev = np.linalg.norm(cur_corners - prev_corners).mean()
                             if mean_px_dist_to_prev < 0.5:
                                 still_streak[1] = i_frame
@@ -278,12 +283,12 @@ class ApplicationUnsynced(Application):
                     still_streak, longest_still_streak = \
                         self.__terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
 
-                camera.read_next_frame()
+                video.read_next_frame()
                 frame_counter += 1
                 # fixed time interval reporting
                 if verbose and time.time() - check_time > report_interval:
                     print("Processed: {:.2%}, frame: {:d}, # usable frames: {:d}, # still streaks: {:d}"
-                          .format(frame_counter / total_calibration_frames, i_frame, len(camera.usable_frames),
+                          .format(frame_counter / total_calibration_frames, i_frame, len(video.usable_frames),
                                   len(still_streaks)))
                     check_time += report_interval
                 i_frame += 1
@@ -291,37 +296,41 @@ class ApplicationUnsynced(Application):
             # in case the last frame was also added
             still_streak, longest_still_streak = \
                 self.__terminate_still_streak(still_streak, longest_still_streak, still_streaks, verbose)
-            camera.still_streaks = [tuple(streak) for streak in still_streaks]
+            video.still_streaks = [tuple(streak) for streak in still_streaks]
             if verbose:
-                print(" Done. Found {:d} usable frames. Longest still streak: {:d}".format(len(camera.usable_frames),
+                print(" Done. Found {:d} usable frames. Longest still streak: {:d}".format(len(video.usable_frames),
                                                                                            len(longest_still_streak)))
-
         if self.args.manual_filter:
             cv2.destroyAllWindows()
 
     def find_camera_poses(self, verbose=False):
-        for camera in self.cameras:
+        ix_cam = 0
+        for video in self.videos:
+            camera = self.cameras[ix_cam]
             if verbose:
-                print("Finding poses of camera {:s} ... (this may take awhile)".format(camera.name))
-            camera.poses = []
-            object_points = [self.board_object_corner_set for dummy in range(len(camera.imgpoints))]
-            rotations, translations = calibrate_wrapper(camera,
-                                                        object_points,
-                                                        self.args.use_rational_model,
-                                                        self.args.use_tangential_coeffs,
-                                                        self.args.use_thin_prism,
-                                                        fix_radial=True,
-                                                        fix_thin_prism=True,
-                                                        max_iterations=1,
-                                                        use_existing_guess=True,
-                                                        test=True)
+                print("Finding camera poses for video {:s} ... (this may take awhile)".format(video.name))
+            video.poses = []
+            object_points = [self.board_object_corner_set for dummy in range(len(camera.image_points))]
+            rotations, translations = calibrate_intrinsics(camera, video,
+                                                           object_points,
+                                                           self.args.use_rational_model,
+                                                           self.args.use_tangential_coeffs,
+                                                           self.args.use_thin_prism,
+                                                           fix_radial=True,
+                                                           fix_thin_prism=True,
+                                                           max_iterations=1,
+                                                           use_existing_guess=True,
+                                                           test=True)
             if verbose:
-                print("Pose reprojection error for camera {:s}: {:.4f}".format(camera.name, camera.intrinsics.error))
+                print("Camera pose reprojection error for video {:s}: {:.4f}"
+                      .format(video.name, camera.intrinsics.error))
             for ix_pose in range(len(rotations)):
                 translation = translations[ix_pose]
                 rotation = rotations[ix_pose]
                 pose = Pose(rotation_vector=rotation, translation_vector=translation)
-                camera.poses.append(pose)
+                video.poses.append(pose)
+
+            ix_cam += 1
 
 
     @staticmethod
@@ -337,15 +346,15 @@ class ApplicationUnsynced(Application):
         streak within the source streak set
         """
         if verbose:
-            print("For each pair of videos, looking for timewise-overlapping"
-                  + "streaks of frames where calibration board is not moving.")
-        for vid in self.cameras:
+            print("For each pair of videos, looking for time-wise overlapping" +
+                  "streaks of frames where calibration board is not moving.")
+        for vid in self.videos:
             vid.still_streak_overlaps = {}
             # TODO: potentially reduce to processing only one source video
-        for i_vid in range(len(self.cameras)):
-            source_streaks = self.cameras[i_vid].still_streaks
-            for j_vid in range(i_vid + 1, len(self.cameras)):
-                target_streaks = self.cameras[j_vid].still_streaks
+        for i_vid in range(len(self.videos)):
+            source_streaks = self.videos[i_vid].still_streaks
+            for j_vid in range(i_vid + 1, len(self.videos)):
+                target_streaks = self.videos[j_vid].still_streaks
                 overlaps = []
                 for source_streak in source_streaks:
                     found = False
@@ -355,20 +364,22 @@ class ApplicationUnsynced(Application):
                         if ApplicationUnsynced.__aux_streak_within(source_streak, target_streak):
                             overlaps.append((source_streak, target_streak))
                         ix_target_streak += 1
-                self.cameras[i_vid].still_streak_overlaps[j_vid] = overlaps
+                self.videos[i_vid].still_streak_overlaps[j_vid] = overlaps
 
     def calibrate_using_stills(self, verbose=True):
         source_cam = self.cameras[0]
+        source_vid = self.videos[0]
 
         # cut at least this number of frames off the range bounds, because
         # some frames in the beginning or end of the ranges will have some minor board motion
         cutoff = 1
-        for j_vid in range(1, len(self.cameras)):
+        for j_vid in range(1, len(self.videos)):
             target_cam = self.cameras[j_vid]
-            overlaps = source_cam.still_streak_overlaps[j_vid]
+            target_vid = self.videos[j_vid]
+            overlaps = source_vid.still_streak_overlaps[j_vid]
 
-            imgpts_src = []
-            imgpts_tgt = []
+            image_points_src = []
+            image_points_tgt = []
             for overlap in overlaps:
                 source_range = overlap[0]
                 target_range = overlap[1]
@@ -387,15 +398,15 @@ class ApplicationUnsynced(Application):
                     target_range = (tgt_mid - src_half_len, src_mid + src_half_len + increment)
 
                 for ix_frame in range(source_range[0] + cutoff, source_range[1] - cutoff):
-                    imgpts_src.append(source_cam.imgpoints[source_cam.usable_frames[ix_frame]])
+                    image_points_src.append(source_cam.image_points[source_cam.usable_frames[ix_frame]])
                 for ix_frame in range(target_range[0] + cutoff, target_range[1] - cutoff):
-                    imgpts_tgt.append(target_cam.imgpoints[target_cam.usable_frames[ix_frame]])
+                    image_points_tgt.append(target_cam.image_points[target_cam.usable_frames[ix_frame]])
 
-            rig = StereoRig((source_cam.copy(), target_cam.copy()))
-            rig.cameras[0].imgpoints = imgpts_src
-            rig.cameras[1].imgpoints = imgpts_tgt
+            rig = Rig((source_cam.copy(), target_cam.copy()))
+            rig.cameras[0].image_points = image_points_src
+            rig.cameras[1].image_points = image_points_tgt
 
-            stereo_calibrate(rig,
+            calibrate_stereo(rig, [source_vid, target_vid],
                              self.object_points, self.frame_dims,
                              self.args.use_fisheye_model,
                              self.args.use_rational_model,
@@ -406,55 +417,57 @@ class ApplicationUnsynced(Application):
                              precalibrate_solo=False,
                              stereo_only=True,
                              max_iterations=self.args.max_iterations,
-                             fix_intrinsics=True)
+                             use_intrinsic_guess=True)
             target_cam.extrinsics = rig.extrinsics
 
     def calibrate_time_reprojection(self, sample_count=1000, verbose=2, save_data=False, min_offset_datapoints=10):
         if type(verbose) == bool:
             verbose = int(verbose)
-        logging.basicConfig(stream=sys.stderr)#, level=logging.DEBUG)
+        logging.basicConfig(stream=sys.stderr)
 
         max_offset = self.args.max_frame_offset
-        source_camera = self.cameras[0]
+        source_video = self.videos[0]
 
         source_poses = []
         sample_frame_numbers = []
 
-        source_camera.frame_offset = 0
+        source_video.frame_offset = 0
 
         if sample_count > 0:
-            sampling_interval = len(source_camera.usable_frames) // sample_count
-            start = (len(source_camera.usable_frames) % sample_count) // 2
+            sampling_interval = len(source_video.usable_frames) // sample_count
+            start = (len(source_video.usable_frames) % sample_count) // 2
 
             # source poses array will be parallel to sample_frame_numbers, i.e. source_poses[i] is the pose
             # of the source camera at the frame position sample_frame_numbers[i] in the original source video
 
-            usable_frames = list(source_camera.usable_frames.keys())
+            usable_frames = list(source_video.usable_frames.keys())
             usable_frames.sort()
 
             for i_usable_frame in range(start, len(usable_frames) - start - 1, sampling_interval):
                 usable_frame_num = usable_frames[i_usable_frame]
                 sample_frame_numbers.append(usable_frame_num)
-                source_pose = source_camera.poses[source_camera.usable_frames[usable_frame_num]]
+                source_pose = source_video.poses[source_video.usable_frames[usable_frame_num]]
                 source_poses.append(source_pose)
             if verbose:
                 print("Sample count: {:d}".format(len(sample_frame_numbers)))
                 # DEBUG LINE
                 logging.debug("Calib interval: {:s}, first usable frame: {:d}"
-                              .format(str(source_camera.calibration_interval), usable_frames[0]))
+                              .format(str(source_video.calibration_interval), usable_frames[0]))
                 logging.debug("Sample frames: {:s}".format(str(sample_frame_numbers)))
         else:
-            sample_frame_numbers = list(source_camera.usable_frames.keys())
+            sample_frame_numbers = list(source_video.usable_frames.keys())
             sample_frame_numbers.sort()
-            source_poses = source_camera.poses
+            source_poses = source_video.poses
             sample_count = len(sample_frame_numbers)
 
         offsets = [0]
-        for target_camera in self.cameras[1:]:
+        ix_camera = 1
+        for target_video in self.videos[1:]:
+            target_camera = self.cameras[ix_camera]
             if verbose:
                 print("========================================================")
                 print("Processing time shift between cameras '{:s}' and '{:s}'."
-                      .format(source_camera.name, target_camera.name))
+                      .format(source_video.name, target_video.name))
                 print("========================================================")
             possible_offset_count = max_offset * 2 + 1
 
@@ -494,11 +507,11 @@ class ApplicationUnsynced(Application):
 
                     # check if frame of the target video at this particular offset from the source sample frame has
                     # a usable calibration board
-                    if j_target_frame in target_camera.usable_frames:
+                    if j_target_frame in target_video.usable_frames:
                         flag_array[ix_offset, j_sample] = True
                         source_pose = source_poses[j_sample]
-                        j_target_usable_frame = target_camera.usable_frames[j_target_frame]
-                        target_pose = target_camera.poses[j_target_usable_frame]
+                        j_target_usable_frame = target_video.usable_frames[j_target_frame]
+                        target_pose = target_video.poses[j_target_usable_frame]
 
                         '''
                         Transform between this camera and the other one.
@@ -507,7 +520,7 @@ class ApplicationUnsynced(Application):
                         '''
                         transform = target_pose.T.dot(source_pose.T_inv)
 
-                        rms = target_camera.find_reprojection_error(j_target_usable_frame, self.board_object_corner_set)
+                        rms = target_video.find_reprojection_error(j_target_usable_frame, self.board_object_corner_set)
 
                         if rms > 1.0:
                             continue
@@ -520,7 +533,7 @@ class ApplicationUnsynced(Application):
                         for i_sample in range(0, len(sample_frame_numbers)):
                             source_frame = sample_frame_numbers[i_sample]
                             i_target_frame = source_frame + offset
-                            if i_sample != j_sample and i_target_frame in target_camera.usable_frames:
+                            if i_sample != j_sample and i_target_frame in target_video.usable_frames:
                                 offset_comparison_count += 1
                                 '''
                                 use the same estimated transform between source & target cameras for specific offset
@@ -543,7 +556,7 @@ class ApplicationUnsynced(Application):
                                 [R|t]_(t,i)' = T(s,t,j,k).dot([R|t]_(s,i+k))
                                 [R|t]_(t,i) =?= [R|t]_(t,i)'
                                 '''
-                                target_pose = target_camera.poses[target_camera.usable_frames[i_target_frame]]
+                                target_pose = target_video.poses[target_video.usable_frames[i_target_frame]]
                                 est_target_pose = Pose(transform.dot(source_poses[i_sample].T))
                                 cumulative_pose_error += est_target_pose.diff(target_pose)
                                 '''
@@ -558,7 +571,7 @@ class ApplicationUnsynced(Application):
                                 Note: X_im(t,i) computation above is for reference only, no need to reproject as
                                  we already have empirical observations of the image points
                                 '''
-                                target_points = target_camera.imgpoints[target_camera.usable_frames[i_target_frame]]
+                                target_points = target_video.image_points[target_video.usable_frames[i_target_frame]]
                                 est_target_points = \
                                     cv2.projectPoints(objectPoints=self.board_object_corner_set,
                                                       rvec=est_target_pose.rvec,
@@ -599,7 +612,7 @@ class ApplicationUnsynced(Application):
                     print("\n", end="")
 
             if save_data:
-                np.savez_compressed(os.path.join(self.args.folder, target_camera.name + "_tc_data.npz"),
+                np.savez_compressed(os.path.join(self.args.folder, target_video.name + "_tc_data.npz"),
                                     sample_counts=offset_sample_counts,
                                     mean_pose_diffs=offset_mean_pose_diffs,
                                     point_rms=offset_pt_rms,
@@ -607,12 +620,14 @@ class ApplicationUnsynced(Application):
                                     pose_diff_mat=pose_differences,
                                     point_rms_mat=projection_rms_mat)
 
-            target_camera.offset = best_offset
-            target_camera.offset_error = best_offset_rms
+            target_video.offset = best_offset
+            target_video.offset_error = best_offset_rms
             if verbose:
-                print("Offset for {:s}-->{:s}: {d}, RMS error: {:.5f}".format(source_camera.name, target_camera.name,
+                print("Offset for {:s}-->{:s}: {d}, RMS error: {:.5f}".format(source_video.name, target_video.name,
                                                                               best_offset, best_offset_rms))
             offsets.append(best_offset)
+            ix_camera += 1
+
         if save_data:
             np.savetxt('autooffset.txt', offsets)
 

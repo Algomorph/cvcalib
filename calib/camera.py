@@ -18,126 +18,222 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import os
-import cv2
-from calib.data import CameraIntrinsics, CameraExtrinsics
-import numpy as np
+
 from lxml import etree
-import math
+import calib.xml as xml
+import numpy as np
+
+DEFAULT_RESOLUTION = (1080, 1920)
 
 
-def homogenize_4vec(vec):
-    return np.array([vec[0] / vec[3], vec[1] / vec[3], vec[2] / vec[3], 1.0]).T
+def _resolution_from_xml(element):
+    resolution_elem = element.find("resolution")
+    width = int(resolution_elem.find("width").text)
+    height = int(resolution_elem.find("height").text)
+    return height, width
 
 
-class Pose(object):
-    def __init__(self, transform=None, inverse_transform=None, rotation_vector=None, translation_vector=None):
-        if transform is None:
-            if translation_vector is None or rotation_vector is None:
-                raise (ValueError("Expecting either the transform matrix or both the rotation & translation vector"))
-            rotation_matrix = cv2.Rodrigues(rotation_vector)[0]
-            self.T = np.vstack((np.append(rotation_matrix, translation_vector, 1), [0, 0, 0, 1]))
-        else:
-            self.T = transform
-            if translation_vector is None:
-                translation_vector = transform[0:3, 3].reshape(3, 1)
-            if rotation_vector is None:
-                rot_mat = transform[0:3, 0:3]
-                rotation_vector = cv2.Rodrigues(rot_mat)[0]
-        if inverse_transform is None:
-            rot_mat = cv2.Rodrigues(rotation_vector)[0]
-            rot_mat_inv = rot_mat.T
-            inverse_translation = -rot_mat_inv.dot(translation_vector)
-            inverse_transform = np.vstack((np.append(rot_mat_inv, inverse_translation, 1), [0, 0, 0, 1]))
+def _resolution_to_xml(element, resolution):
+    resolution_elem = etree.SubElement(element, "resolution")
+    width_elem = etree.SubElement(resolution_elem, "width")
+    width_elem.text = str(resolution[1])
+    height_elem = etree.SubElement(resolution_elem, "height")
+    height_elem.text = str(resolution[0])
 
-        self.tvec = translation_vector
-        self.rvec = rotation_vector
-        self.T_inv = inverse_transform
 
-    def dot(self, other_pose):
-        return Pose(self.T.dot(other_pose.T))
+def _error_and_time_from_xml(element):
+    error = float(element.find("error").text)
+    time = float(element.find("time").text)
+    return error, time
 
-    def diff(self, other_pose):
-        """
-        Find difference between two poses.
-        I.e. find the euclidean distance between unit vectors after being transformed by the poses.
-        """
-        unit_vector = np.array([1., 1., 1., 1.]).T
-        p1 = self.T.dot(unit_vector)
-        p2 = other_pose.T.dot(unit_vector)
-        # no need to homogenize, since the last entry will end up being one anyway
-        return np.linalg.norm(p1 - p2)  # it will also not contrubute to the norm, i.e. 1 - 1 = 0
 
-    @staticmethod
-    def invert_pose_matrix(T):
-        tvec = T[0:3, 3].reshape(3, 1)
-        R = T[0:3, 0:3]
-        R_inv = R.T
-        tvec_inv = -R_inv.dot(tvec)
-        return np.vstack((np.append(R_inv, tvec_inv, 1), [0, 0, 0, 1]))
+def _error_and_time_to_xml(element, error, time):
+    error_element = etree.SubElement(element, "error")
+    error_element.text = str(error)
+    time_element = etree.SubElement(element, "time")
+    time_element.text = str(time)
 
 
 class Camera(object):
     """
     Represents a video object & camera that was used to capture it, a wrapper around OpenCV's video_capture
     """
-    # TODO: Video and Camera need to be two separate classes, where a camera may include one or more videos
-    _unindexed_instance_counter = 0
-    _used_indexes = set()
 
-    def __init__(self, video_path, index=None, intrinsics=None, extrinsics=None, load_video=True):
+    class Intrinsics(object):
         """
-        Build a camera from the specified file at the specified directory
+        Represents videos of a camera, i.e. intrinsic matrix & distortion coefficients
         """
-        if index is None:
-            index = Camera._unindexed_instance_counter
-            Camera._unindexed_instance_counter += 1
-        if index in Camera._used_indexes:
-            raise RuntimeError("{:s}: index {:d} was already used.".format(self.__class__.__name__, index))
-        self.index = index
-        self.cap = None
 
-        if video_path[-3:] != "mp4":
-            raise ValueError("Specified file does not have .mp4 extension.")
-        self.video_path = video_path
-        self.name = os.path.basename(video_path)[:-4]
-        if load_video:
-            self.reopen()
-            self.get_cap_props()
-        else:
-            self.cap = None
-            self.frame_dims = None
-            self.frame = None
-            self.previous_frame = None
-            self.fps = None
-            self.frame_count = 0
-            self.n_channels = 0
+        def __init__(self, resolution, intrinsic_mat=None,
+                     distortion_coeffs=np.zeros(8, np.float64),
+                     error=-1.0, time=0.0):
+            """
+            Constructor
+            @type intrinsic_mat: numpy.ndarray
+            @param intrinsic_mat: intrinsic matrix (3x3)
+            @type distortion_coeffs: numpy.ndarray
+            @param distortion_coeffs: distortion coefficients (1x8)
+            @type resolution: tuple[int]
+            @param resolution: pixel resolution (height,width) of the camera
+            @type error: float
+            @param error: mean square distance error to object points after reprojection
+            @type  time: float
+            @param time: calibration time in seconds
+            """
+            if intrinsic_mat is None:
+                intrinsic_mat = np.eye(3, dtype=np.float64)
+                intrinsic_mat[0, 2] = resolution[1] / 2
+                intrinsic_mat[1, 2] = resolution[0] / 2
+            self.intrinsic_mat = intrinsic_mat
+            self.distortion_coeffs = distortion_coeffs
+            self.resolution = resolution
+            self.error = error
+            self.time = time
+            self.timestamp = None
 
-        # TODO: refactor to image_points
-        self.imgpoints = []
+        def to_xml(self, root_element, as_sequence=False):
+            """
+            Build an xml node representation of this object under the provided root xml element
+            @type root_element:  lxml.etree.SubElement
+            @param root_element: the root element to build under
+            @type as_sequence: bool
+            @param as_sequence: whether to generate XML for sequences (see OpenCV's documentation on XML/YAML persistence)
+            """
+            if not as_sequence:
+                elem_name = self.__class__.__name__
+            else:
+                elem_name = "_"
+            intrinsics_elem = etree.SubElement(root_element, elem_name)
+            _resolution_to_xml(intrinsics_elem, self.resolution)
+            xml.make_opencv_matrix_xml_element(intrinsics_elem, self.intrinsic_mat, "intrinsic_mat")
+            xml.make_opencv_matrix_xml_element(intrinsics_elem, self.distortion_coeffs, "distortion_coeffs")
+            _error_and_time_to_xml(intrinsics_elem, self.error, self.time)
+
+        def __str__(self):
+            return (("{:s}\nResolution (h,w): {:s}\n" +
+                     "Intrinsic matrix:\n{:s}\nDistortion coefficients:\n{:s}\n" +
+                     "Error: {:f}\nTime: {:f}")
+                    .format(self.__class__.__name__, str(self.resolution), str(self.intrinsic_mat),
+                            str(self.distortion_coeffs), self.error, self.time))
+
+        @staticmethod
+        def from_xml(element):
+            """
+            @type element: lxml.etree.SubElement
+            @param element: the element to construct an CameraIntrinsics object from
+            @return a new CameraIntrinsics object constructed from XML node with matrices in OpenCV format
+            """
+            if element is None:
+                return Camera.Intrinsics(DEFAULT_RESOLUTION)
+            resolution = _resolution_from_xml(element)
+            intrinsic_mat = xml.parse_xml_matrix(element.find("intrinsic_mat"))
+            distortion_coeffs = xml.parse_xml_matrix(element.find("distortion_coeffs"))
+            error, time = _error_and_time_from_xml(element)
+            return Camera.Intrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time)
+
+    class Extrinsics(object):
+        def __init__(self, rotation=None, translation=None, essential_mat=None,
+                     fundamental_mat=None, error=-1.0, time=0.0):
+            """
+            Constructor
+            @type rotation: numpy.ndarray
+            @param rotation: 3x3 rotation matrix from camera 0 to camera 1
+            @type translation: numpy.ndarray
+            @param translation: a 3x1 translation vector from camera 0 to camera 1
+            @type error: float
+            @param error: mean square distance error to object points after reprojection
+            @type  time: float
+            @param time: calibration time in seconds
+            """
+            if rotation is None:
+                rotation = np.eye(3, dtype=np.float64)
+            if translation is None:
+                translation = np.zeros((1,3), np.float64)
+            if essential_mat is None:
+                essential_mat = np.eye(3, dtype=np.float64)
+            if fundamental_mat is None:
+                fundamental_mat = np.eye(3, dtype=np.float64)
+            self.rotation = rotation
+            self.translation = translation
+            self.essential_mat = essential_mat
+            self.fundamental_mat = fundamental_mat
+            self.error = error
+            self.time = time
+            self.timestamp = None
+
+        def __str__(self):
+            return (("{:s}\nRotation:\n{:s}\nTranslation:\n{:s}\nEssential Matrix:\n{:s}" +
+                     "\nFundamental Matrix:\n{:s}\nError: {:f}\nTime: {:f}")
+                    .format(self.__class__.__name__, str(self.rotation),
+                            str(self.translation), str(self.essential_mat),
+                            str(self.fundamental_mat), self.error, self.time))
+
+        def to_xml(self, root_element, as_sequence=False):
+            """
+            Build an xml node representation of this object under the provided root xml element
+            @type root_element:  lxml.etree.SubElement
+            @param root_element: the root element to build under
+            @type as_sequence: bool
+            @param as_sequence: whether to generate XML for sequences (see OpenCV's documentation on XML/YAML persistence)
+
+            """
+            if not as_sequence:
+                elem_name = self.__class__.__name__
+            else:
+                elem_name = "_"
+
+            extrinsics_elem = etree.SubElement(root_element, elem_name)
+
+            xml.make_opencv_matrix_xml_element(extrinsics_elem, self.rotation, "rotation")
+            xml.make_opencv_matrix_xml_element(extrinsics_elem, self.translation, "translation")
+            xml.make_opencv_matrix_xml_element(extrinsics_elem, self.essential_mat, "essential_mat")
+            xml.make_opencv_matrix_xml_element(extrinsics_elem, self.fundamental_mat,
+                                               "fundamental_mat")
+            _error_and_time_to_xml(extrinsics_elem, self.error, self.time)
+
+        @staticmethod
+        def from_xml(element):
+            """
+            Build a CameraExtrinsics object out of the provided XML node with matrices in
+            OpenCV format
+            @type element: lxml.etree.SubElement
+            @param element: the element to construct an StereoRig object from
+            @rtype: calib.CameraExtrinsics|None
+            @return a new StereoRig object constructed from given XML node, None if element is None
+            """
+            if element is None:
+                return Camera.Extrinsics()
+            rotation = xml.parse_xml_matrix(element.find("rotation"))
+            translation = xml.parse_xml_matrix(element.find("translation"))
+            essential_mat = xml.parse_xml_matrix(element.find("essential_mat"))
+            fundamental_mat = xml.parse_xml_matrix(element.find("fundamental_mat"))
+            error, time = _error_and_time_from_xml(element)
+            return Camera.Extrinsics(rotation, translation, essential_mat,
+                                     fundamental_mat, error, time)
+
+    def __init__(self, resolution=None, intrinsics=None, extrinsics=None):
+        """
+        Build a camera with the specified parameters
+        """
+        if resolution is None:
+            resolution = DEFAULT_RESOLUTION
         if intrinsics is None:
-            self.intrinsics = CameraIntrinsics(self.frame_dims, index=index)
+            self.intrinsics = Camera.Intrinsics(resolution)
         else:
             self.intrinsics = intrinsics
         if extrinsics is None:
-            self.extrinsics = CameraExtrinsics()
+            self.extrinsics = Camera.Extrinsics()
         else:
             self.extrinsics = extrinsics
 
-        self.current_image_points = None
-
-        self.more_frames_remain = True
-        self.poses = []
-        self.usable_frames = {}
-        self.calibration_interval = (0, self.frame_count)
-
     def copy(self):
-        return Camera(self.video_path, index=None, intrinsics=self.intrinsics, extrinsics=self.extrinsics,
-                      load_video=False)
+        return Camera(intrinsics=self.intrinsics, extrinsics=self.extrinsics)
 
     def to_xml(self, root_element, as_sequence=False):
         """
         Build an xml node representation of this object under the provided root xml element
+        @type as_sequence: bool
+        @param as_sequence: use sequence opencv XML notation, i.e. XML element name set to "_"
         @type root_element:  lxml.etree.SubElement
         @param root_element: the root element to build under
         """
@@ -145,18 +241,18 @@ class Camera(object):
             elem_name = self.__class__.__name__
         else:
             elem_name = "_"
-        camera_elem = etree.SubElement(root_element, elem_name, attrib={"index": str(self.index)})
-        name_elem = etree.SubElement(camera_elem, "name")
-        name_elem.text = self.name
-        video_path_elem = etree.SubElement(camera_elem, "video_path")
-        video_path_elem.text = self.video_path
-        self.intrinsics.to_xml(camera_elem, False)
+        camera_elem = etree.SubElement(root_element, elem_name)
+        if self.intrinsics:
+            self.intrinsics.to_xml(camera_elem, False)
+        if self.extrinsics and self.extrinsics.error > 0.0:
+            self.extrinsics.to_xml(camera_elem, False)
 
     def __str__(self, *args, **kwargs):
-        return (("{:s}, index: {:d}\nName (h,w): {:s}\n" +
-                 "Video path: {:s}\nIntrinsics:\n{:s}")
-                .format(self.__class__.__name__, self.index, str(self.name), str(self.video_path),
-                        str(self.intrinsics)))
+        if self.extrinsics.error > 0.0:
+            extrinsics_string = "\n" + str(self.extrinsics)
+        else:
+            extrinsics_string = ""
+        return Camera.__name__ + "\n" + str(self.intrinsics) + extrinsics_string
 
     @staticmethod
     def from_xml(element):
@@ -165,120 +261,14 @@ class Camera(object):
         @param element: the element to construct an CameraIntrinsics object from
         @return a new Camera object constructed from XML node with matrices in OpenCV format
         """
-        video_path = element.find("video_path").text
-        # name = element.find("name").text
-        index = int(element.get("index"))
-        intrinsics_elem = element.find(CameraIntrinsics.__name__)  # @UndefinedVariable
-        intrinsics = CameraIntrinsics.from_xml(intrinsics_elem)
-        return Camera(video_path, index, intrinsics, load_video=False)
-
-    def get_cap_props(self):
-        self.frame_dims = (int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)),
-                           int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)))
-
-        self.frame_count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        self.fps = self.cap.get(cv2.CAP_PROP_FPS)
-        if self.cap.get(cv2.CAP_PROP_MONOCHROME) == 0.0:
-            self.n_channels = 3
+        intrinsics_elem = element.find(Camera.Intrinsics.__name__)
+        if intrinsics_elem:
+            intrinsics = Camera.Intrinsics.from_xml(intrinsics_elem)
         else:
-            self.n_channels = 1
-        self.frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
-        self.previous_frame = np.zeros((self.frame_dims[0], self.frame_dims[1], self.n_channels), np.uint8)
-
-    def reopen(self):
-        if self.cap is not None:
-            self.cap.release()
-        if not os.path.isfile(self.video_path):
-            raise ValueError("No video file found at {0:s}".format(self.video_path))
-        self.cap = cv2.VideoCapture(self.video_path)
-        if not self.cap.isOpened():
-            raise ValueError("Could not open specified .mp4 file ({0:s}) for capture!".format(self.video_path))
-
-    def clear_results(self):
-        self.poses = []
-        self.imgpoints = []
-        self.usable_frames = {}
-
-    def read_next_frame(self):
-        self.more_frames_remain, self.frame = self.cap.read()
-
-    def read_at_pos(self, ix_frame):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, ix_frame)
-        self.more_frames_remain, self.frame = self.cap.read()
-
-    def read_previous_frame(self):
-        """
-        For traversing the video backwards.
-        """
-        cur_frame_ix = self.cap.get(cv2.CAP_PROP_POS_FRAMES)
-        if cur_frame_ix == 0:
-            self.more_frames_remain = False
-            self.frame = None
-            return
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, cur_frame_ix - 1)  # @UndefinedVariable
-        self.more_frames_remain = True
-        self.frame = self.cap.read()[1]
-
-    def set_previous_to_current(self):
-        self.previous_frame = self.frame
-
-    def scroll_to_frame(self, i_frame):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, i_frame)  # @UndefinedVariable
-
-    def scroll_to_beginning(self):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0.0)  # @UndefinedVariable
-
-    def scroll_to_end(self):
-        self.cap.set(cv2.CAP_PROP_POS_FRAMES, self.frame_count - 1)  # @UndefinedVariable
-
-    def __del__(self):
-        if self.cap is not None:
-            self.cap.release()
-
-    def approximate_corners(self, board_dims):
-        found, corners = cv2.findChessboardCorners(self.frame, board_dims)
-        self.current_image_points = corners
-        return found
-
-    def find_current_pose(self, object_points):
-        """
-        Find camera pose relative to object using current image point set, 
-        object_points are treated as world coordinates
-        """
-        retval, rvec, tvec = cv2.solvePnPRansac(object_points, self.current_image_points,
-                                                self.intrinsics.intrinsic_mat, self.intrinsics.distortion_coeffs,
-                                                flags=cv2.SOLVEPNP_ITERATIVE)[0:3]
-        if retval:
-            self.poses.append(Pose(rotation_vector=rvec, translation_vector=tvec))
+            intrinsics = Camera.Intrinsics(DEFAULT_RESOLUTION)
+        extrinsics_elem = element.find(Camera.Extrinsics.__name__)
+        if extrinsics_elem:
+            extrinsics = Camera.Extrinsics.from_xml(extrinsics_elem)
         else:
-            self.poses.append(None)
-        return retval
-
-    def find_reprojection_error(self, i_usable_frame, object_points):
-        rvec = self.poses[i_usable_frame].rvec
-        tvec = self.poses[i_usable_frame].tvec
-        img_pts = self.imgpoints[i_usable_frame]
-
-        est_pts = cv2.projectPoints(object_points, rvec, tvec,
-                                    self.intrinsics.intrinsic_mat, self.intrinsics.distortion_coeffs)[0]
-
-        rms = math.sqrt(((img_pts - est_pts) ** 2).sum() / len(object_points))
-        return rms
-
-    def add_corners(self, i_frame, criteria_subpix, frame_folder_path, save_image):
-        grey_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
-        cv2.cornerSubPix(grey_frame, self.current_image_points, (11, 11), (-1, -1), criteria_subpix)
-        if save_image:
-            png_path = (os.path.join(frame_folder_path,
-                                     "{0:s}{1:04d}{2:s}".format(self.name, i_frame, ".png")))
-            cv2.imwrite(png_path, self.frame)
-        self.usable_frames[i_frame] = len(self.imgpoints)
-        self.imgpoints.append(self.current_image_points)
-
-    def filter_frame_manually(self):
-        display_image = self.frame
-        cv2.imshow("frame of video {0:s}".format(self.name), display_image)
-        key = cv2.waitKey(0) & 0xFF
-        add_corners = (key == ord('a'))
-        cv2.destroyWindow("frame")
-        return add_corners, key
+            extrinsics = Camera.Extrinsics()
+        return Camera(intrinsics, extrinsics)

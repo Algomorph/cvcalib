@@ -21,25 +21,14 @@ limitations under the License.
 
 from lxml import etree
 from calib.camera import Camera
-from calib.data import CameraExtrinsics
-import cv2
 
-
-# TODO: StereoRig & Camera should have a single, abstract ancestor to enforce interface compliance,
-# such as filtering functions
-
-
-class StereoRig(object):
-    # TODO: get rid of instance counter, initialize with current date instead (always!).
-
-    __unindexed_instance_counter = 0
-
-    '''
+class Rig(object):
+    """
     Represents the results of a stereo calibration procedure, including all the information
     necessary to stereo-rectify images from the corresponding videos.
     Camera cameras <left,right> are always represented by indices <0,1> respectively
-    '''
-    def __init__(self, cameras, extrinsics=CameraExtrinsics(), _id=None):
+    """
+    def __init__(self, cameras=()):
         """
         Constructor
         @type cameras: tuple[calib.camera.Camera]
@@ -49,12 +38,6 @@ class StereoRig(object):
         camera 0, as well as the essential & fundamental matrices of this relationship
         """
         self.cameras = cameras
-        self.extrinsics = extrinsics
-        if _id is None:
-            self.id = StereoRig.__unindexed_instance_counter
-            StereoRig.__unindexed_instance_counter += 1
-        else:
-            self.id = _id
         
     def to_xml(self, root_element, as_sequence=False):
         """
@@ -68,18 +51,20 @@ class StereoRig(object):
             elem_name = self.__class__.__name__
         else:
             elem_name = "_"
-        stereo_rig_elem = etree.SubElement(root_element, elem_name, attrib={"id": str(self.id)})
+        stereo_rig_elem = etree.SubElement(root_element, elem_name)
         cameras_elem = etree.SubElement(stereo_rig_elem, "Cameras")
         # TODO: change serialization scheme to serialize cameras directly when that becomes possible
-        self.cameras[0].to_xml(cameras_elem, as_sequence=True)
-        self.cameras[1].to_xml(cameras_elem, as_sequence=True)
-        self.extrinsics.to_xml(stereo_rig_elem)
+        for camera in self.cameras:
+            camera.to_xml(cameras_elem, as_sequence=True)
         
     def __str__(self):
-        return (("{:s}, id: {:s}\n-----CAM0-----\n{:s}\n-----CAM1-----\n{:s}"+
-                 "\n--------------\nExtrinsics:\n{:s}\n--------------")
-                .format(self.__class__.__name__, str(self.id), str(self.cameras[0]),
-                        str(self.cameras[1]), str(self.extrinsics)))
+        representation = "=====" + self.__class__.__name__ + "====="
+        ix_camera = 0
+        for camera in self.cameras:
+            representation += "\n-----CAM{:d}-----\n{:s}".format(ix_camera, str(camera))
+            ix_camera += 1
+        representation += "\n--------------"
+        return representation
         
     @staticmethod
     def from_xml(element):
@@ -90,23 +75,16 @@ class StereoRig(object):
         @return a new StereoRig object constructed from XML node with matrices in
         OpenCV format
         """
-        cameras_elem = element.find("Cameras")
-        cameras = [Camera.from_xml(cameras_elem[0]), Camera.from_xml(cameras_elem[1])]
-        extrinsics = CameraExtrinsics.from_xml(element.find("CameraExtrinsics"))
-       
-        _id = element.get("id")
-        return StereoRig(cameras, extrinsics, _id)
+        use_old_format = element.find("CameraExtrinsics") is not None
+        if use_old_format:
+            extrinsics0 = Camera.Extrinsics()
+            extrinsics1 = Camera.Extrinsics.from_xml(element.find("CameraExtrinsics"))
+            cameras_elem = element.find("Cameras")
+            cameras = (Camera.from_xml(cameras_elem[0]), Camera.from_xml(cameras_elem[1]))
+            cameras[0].extrinsics = extrinsics0
+            cameras[1].extrinsics = extrinsics1
+        else:
+            cameras_element = element.find("Cameras")
+            cameras = tuple([Camera.from_xml(camera_element) for camera_element in cameras_element])
+        return Rig(cameras)
 
-    def filter_basic_stereo(self, board_dims):
-        l_frame = self.cameras[0].frame
-        r_frame = self.cameras[1].frame
-
-        lfound, lcorners = cv2.findChessboardCorners(l_frame, board_dims)
-        rfound, rcorners = cv2.findChessboardCorners(r_frame, board_dims)
-        if not (lfound and rfound):
-            return False
-
-        self.cameras[0].current_image_points = lcorners
-        self.cameras[1].current_image_points = rcorners
-
-        return True

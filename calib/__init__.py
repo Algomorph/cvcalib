@@ -1,2 +1,2 @@
-__all__ = ["xml", "data", "geom", "io", "camera", "rig", "utils",
+__all__ = ["xml", "data", "geom", "io", "video", "camera", "rig", "utils",
            "app","app_synced","app_unsynced"]

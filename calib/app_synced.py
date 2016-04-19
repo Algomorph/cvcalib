@@ -19,14 +19,14 @@ limitations under the License.
 """
 import os
 import os.path as osp
-import cv2  # @UnresolvedImport
+import cv2
 import numpy as np
-import calib.utils as cutils
+from calib.utils import calibrate, undistort_stereo
 from calib import io as cio
 from calib.app import Application
-from calib.data import CameraIntrinsics
 from calib.camera import Camera
-from calib.rig import StereoRig
+from calib.video import Video
+from calib.rig import Rig
 import sys
 import re
 
@@ -41,133 +41,81 @@ class ApplicationSynced(Application):
         Application.__init__(self, args)
 
         self.usable_frame_count = 0
+
+        self.videos = [Video(os.path.join(args.folder, video_path)) for video_path in args.videos]
+        self.video = self.videos[0]
+        self.total_frames = min([video.frame_count for video in self.videos])
+
+        # TODO: redesign for arbitrary number of videos & cameras
         if len(args.videos) == 1:
             if args.input_calibration is not None:
                 full_path = osp.join(args.folder, args.input_calibration[0])
-                initial_calibration = cio.load_opencv_calibration(full_path)
-                if type(initial_calibration) == StereoRig:
+                initial_calibration1 = cio.load_opencv_calibration(full_path)
+                if type(initial_calibration1) == Rig:
                     raise ValueError("Got only one camera input, \'{0:s}\', but a stereo calibration " +
                                      "input file '{0:s}'. Please provide a single camera's intrinsics."
                                      .format(self.camera.name, args.input_calibration))
-                elif type(initial_calibration) == Camera:
-                    self.camera = Camera(os.path.join(args.folder, args.videos[0]), 0,
-                                         intrinsics=initial_calibration.intrinsics)
-                elif type(initial_calibration) == CameraIntrinsics:
-                    self.camera = Camera(os.path.join(args.folder, args.videos[0]), 0,
-                                         intrinsics=initial_calibration)
+                elif type(initial_calibration1) == Camera:
+                    self.camera = initial_calibration1
+                elif type(initial_calibration1) == Camera.Intrinsics:
+                    self.camera = Camera(intrinsics=initial_calibration1)
                 else:
                     raise TypeError("(:s) Unsupported calibration type: {:s}"
-                                    .format(ApplicationSynced.__name__, str(type(initial_calibration))))
+                                    .format(ApplicationSynced.__name__, str(type(initial_calibration1))))
             else:
-                self.camera = Camera(os.path.join(args.folder, args.videos[0]), 0)
-            self.cameras = [self.camera]
-            self.__automatic_filter_basic = self.__automatic_filter_basic_mono
-            self.__automatic_filter = self.__automatic_filter_mono
-            self.total_frames = self.camera.frame_count
+                self.camera = Camera(os.path.join(args.folder, args.videos[0]))
+            self.rig = Rig((self.camera,))
         elif len(args.videos) == 2:
             if args.input_calibration is not None:
                 full_path = osp.join(args.folder, args.input_calibration[0])
-                initial_calibration = cio.load_opencv_calibration(full_path)
-                if type(initial_calibration) == StereoRig:
-                    # swap out the cameras with alternate videos, but use existing extrinsics & intrinsics
-                    self.rig = initial_calibration
-                    self.rig.cameras = [Camera(os.path.join(args.folder, args.videos[0]), 0,
-                                               intrinsics=self.rig.cameras[0].intrinsics),
-                                        Camera(os.path.join(args.folder, args.videos[1]), 1,
-                                               intrinsics=self.rig.cameras[1].intrinsics)]
+                initial_calibration1 = cio.load_opencv_calibration(full_path)
+                if type(initial_calibration1) == Rig:
+                    self.rig = initial_calibration1
                 else:
-                    self.rig = StereoRig([None, None])
+                    self.rig = Rig()
                     if len(args.input_calibration) < 2:
                         raise ValueError("Input calibration parameters need to have two" +
                                          " sets of intrinsics for stereo calibration." +
-                                         "Please either provide a space delimeted list of two separate" +
+                                         "Please either provide a space delimited list of two separate" +
                                          "files with intrinsics or a single stereo rig file as argument.")
                     full_path = osp.join(args.folder, args.input_calibration[1])
                     initial_calibration2 = cio.load_opencv_calibration(full_path)
-                    init_c = [initial_calibration, initial_calibration2]
-                    ix_calib = 0
-                    for calib in init_c:
-                        if type(initial_calibration) == CameraIntrinsics:
-                            self.rig.cameras[ix_calib] = \
-                                Camera(os.path.join(args.folder, args.videos[ix_calib]), ix_calib,
-                                        intrinsics=calib)
-                        elif type(initial_calibration) == Camera:
-                            self.rig.cameras[ix_calib] = \
-                                Camera(os.path.join(args.folder, args.videos[ix_calib]), ix_calib,
-                                        intrinsics=calib.intrinsics)
+                    initial_calibration = [initial_calibration1, initial_calibration2]
+                    cameras = []
+                    for calib in initial_calibration:
+                        if type(calib) == Camera.Intrinsics:
+                            cameras.append(Camera(intrinsics=calib))
+                        elif type(calib) == Camera:
+                            cameras.append(calib)
                         else:
                             raise TypeError("(:s) Unsupported calibration type: {:s}"
-                                            .format(ApplicationSynced.__name__, str(type(initial_calibration))))
-                        ix_calib += 1
+                                            .format(ApplicationSynced.__name__, str(type(initial_calibration1))))
+                    self.rig.cameras = cameras
 
             else:
-                self.rig = StereoRig([Camera(os.path.join(args.folder, args.videos[0]), 0),
-                                      Camera(os.path.join(args.folder, args.videos[1]), 1)])
-            self.cameras = self.rig.cameras
-            self.__automatic_filter_basic = self.__automatic_filter_basic_stereo
-            self.__automatic_filter = self.__automatic_filter_stereo
-            self.total_frames = min((self.rig.cameras[0].frame_count, self.rig.cameras[1].frame_count))
+                self.rig = Rig((Camera(os.path.join(args.folder, args.videos[0])),
+                                Camera(os.path.join(args.folder, args.videos[1]))))
         else:
             raise ValueError("This calibration tool can only work with single " +
                              "video files or video pairs from synchronized stereo. " +
                              "Provided number of videos: {:d}.".format(len(args.videos)))
 
-    # TODO: --> StereoRig class
-    def __automatic_filter_stereo(self):
-        l_frame = self.cameras[0].frame
-        lframe_prev = self.cameras[0].previous_frame
-        r_frame = self.cameras[1].frame
-
-        sharpness = min(cv2.Laplacian(l_frame, cv2.CV_64F).var(),
-                        cv2.Laplacian(r_frame, cv2.CV_64F).var())
-        verbose = False  # set to True for sharpness analysis
-        if (verbose):
-            print("Minimum frame pair sharpness: " + sharpness)
-
-        # compare left frame to the previous left **filtered** one
-        ldiff = np.sum(abs(lframe_prev - l_frame)) * self.pixel_difference_factor
-
-        if sharpness < self.args.sharpness_threshold or ldiff < self.args.difference_threshold:
+    def __automatic_filter_complex(self):
+        # compare frame from the first video to the previous **filtered** one from the same video
+        pixel_difference = (np.sum(abs(self.videos[0].previous_frame - self.videos[0].frame)) *
+                            self.pixel_difference_factor)
+        if pixel_difference < self.args.difference_threshold:
             return False
-
-        lfound, lcorners = cv2.findChessboardCorners(l_frame, self.board_dims)
-        rfound, rcorners = cv2.findChessboardCorners(r_frame, self.board_dims)
-        if not (lfound and rfound):
-            return False
-
-        self.cameras[0].current_image_points = lcorners
-        self.cameras[1].current_image_points = rcorners
-
+        for video in self.videos:
+            if not video.try_approximate_corners_blur(self.board_dims, self.args.sharpness_threshold):
+                return False
         return True
 
-    # TODO: automatic filter mono --> Camera class
-    def __automatic_filter_mono(self):
-        frame = self.camera.frame
-        frame_prev = self.camera.previous_frame
-        sharpness = cv2.Laplacian(frame, cv2.CV_64F).var()
-        if sharpness < self.args.sharpness_threshold:
-            return False
-        # compare left frame to the previous left **filtered** one
-        ldiff = np.sum(abs(frame_prev - frame)) * self.pixel_difference_factor
-        if ldiff < self.args.difference_threshold:
-            return False
-
-        found, corners = cv2.findChessboardCorners(frame, self.board_dims)
-
-        if not found:
-            return False
-
-        self.camera.current_image_points = corners
-
+    def __automatic_filter_basic(self):
+        for video in self.videos:
+            if not video.try_approximate_corners(self.board_dims):
+                return False
         return True
-
-    # TODO: automatic filter stereo --> StereoRig class
-    def __automatic_filter_basic_stereo(self):
-        return self.rig.filter_basic_stereo(self.cameras, self.board_dims)
-
-    # TODO: --> Camera class
-    def __automatic_filter_basic_mono(self):
-        return self.camera.approximate_corners(self.board_dims)
 
     def load_frame_images(self):
         """
@@ -182,9 +130,9 @@ class ApplicationSynced(Application):
 
         frame_number_sets = []
 
-        for camera in self.cameras:
+        for video in self.videos:
             # assume matching numbers in corresponding left & right files
-            files = [f for f in all_files if f.startswith(camera.name)]
+            files = [f for f in all_files if f.startswith(video.name)]
             files.sort()  # added to be explicit
 
             cam_frame_ct = 0
@@ -198,13 +146,13 @@ class ApplicationSynced(Application):
                     raise ValueError("Could not find corners in image '{0:s}'".format(files[ix_pair]))
                 grey = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 cv2.cornerSubPix(grey, corners, (11, 11), (-1, -1), self.criteria_subpix)
-                camera.imgpoints.append(corners)
-                camera.usable_frames[frame_number] = ix_pair
+                video.image_points.append(corners)
+                video.usable_frames[frame_number] = ix_pair
                 cam_frame_ct += 1
             usable_frame_ct = min(usable_frame_ct, cam_frame_ct)
             frame_number_sets.append(frame_numbers)
 
-        if len(self.cameras) > 1:
+        if len(self.videos) > 1:
             # check that all cameras have the same frame number sets
             if len(frame_number_sets[0]) != len(frame_number_sets[1]):
                 raise ValueError(
@@ -216,10 +164,10 @@ class ApplicationSynced(Application):
                     raise ValueError("There are some non-paired frames in folder '{0:s}'." +
                                      " Check frame {1:d} for camera {2:s} and frame {3:d} for camera {4:s}."
                                      .format(self.full_frame_folder_path,
-                                             fn0, self.cameras[0].name,
-                                             fn1, self.cameras[1].name))
+                                             fn0, self.videos[0].name,
+                                             fn1, self.videos[1].name))
 
-        for i_frame in range(usable_frame_ct):  # @UnusedVariable
+        for i_frame in range(usable_frame_ct):
             self.object_points.append(self.board_object_corner_set)
         return usable_frame_ct
 
@@ -228,16 +176,13 @@ class ApplicationSynced(Application):
             print("Usable frames: {0:d} ({1:.3%})"
                   .format(usable_frame_ct, float(usable_frame_ct) / (i_frame + 1)))
 
-        for camera in self.cameras:
-            camera.add_corners(i_frame, self.criteria_subpix,
+        for video in self.videos:
+            video.add_corners(i_frame, self.criteria_subpix,
                               self.full_frame_folder_path, self.args.save_images)
         self.object_points.append(self.board_object_corner_set)
 
     def filter_frame_manually(self):
-        if len(self.cameras) == 2:
-            display_image = np.hstack((self.cameras[0].frame, self.cameras[1].frame))
-        else:
-            display_image = self.cameras[0].frame
+        display_image = np.hstack([video.frame for video in self.videos])
         cv2.imshow("frame", display_image)
         key = cv2.waitKey(0) & 0xFF
         add_corners = (key == ord('a'))
@@ -248,7 +193,7 @@ class ApplicationSynced(Application):
         skip_interval = int(self.total_frames / self.args.frame_count_target)
 
         continue_capture = 1
-        for video in self.cameras:
+        for video in self.videos:
             # just in case we're running capture again
             video.clear_results()
             video.scroll_to_beginning()
@@ -264,10 +209,10 @@ class ApplicationSynced(Application):
             add_corners = False
             i_frame = i_start_frame
             i_end_frame = i_start_frame + skip_interval
-            for video in self.cameras:
+            for video in self.videos:
                 video.scroll_to_frame(i_frame)
             while not add_corners and i_frame < i_end_frame and continue_capture:
-                add_corners = self.__automatic_filter()
+                add_corners = self.__automatic_filter_complex()
                 if self.args.manual_filter:
                     add_corners, key = self.filter_frame_manually()
 
@@ -275,12 +220,12 @@ class ApplicationSynced(Application):
                     usable_frame_ct += 1
                     self.add_corners_for_all(usable_frame_ct, report_interval, i_frame)
                     # log last usable **filtered** frame
-                    for video in self.cameras:
+                    for video in self.videos:
                         video.set_previous_to_current()
 
                 i_frame += 1
                 continue_capture = 1
-                for video in self.cameras:
+                for video in self.videos:
                     video.read_next_frame()
                     continue_capture &= video.more_frames_remain
                 continue_capture &= (not (self.args.manual_filter and key == 27))
@@ -294,7 +239,7 @@ class ApplicationSynced(Application):
 
     def run_capture(self):
         continue_capture = 1
-        for video in self.cameras:
+        for video in self.videos:
             # just in case we're running capture again
             video.clear_results()
             video.scroll_to_beginning()
@@ -308,7 +253,7 @@ class ApplicationSynced(Application):
 
         while continue_capture:
             if not self.args.frame_number_filter or i_frame in self.camera.usable_frames:
-                add_corners = self.__automatic_filter()
+                add_corners = self.__automatic_filter_complex()
 
                 if self.args.manual_filter:
                     add_corners, key = self.filter_frame_manually()
@@ -318,12 +263,12 @@ class ApplicationSynced(Application):
                     self.add_corners_for_all(usable_frame_ct, report_interval, i_frame)
 
                     # log last usable **filtered** frame
-                    for video in self.cameras:
+                    for video in self.videos:
                         video.set_previous_to_current()
 
             i_frame += 1
             continue_capture = 1
-            for video in self.cameras:
+            for video in self.videos:
                 video.read_next_frame()
                 continue_capture &= video.more_frames_remain
             continue_capture &= (not (self.args.manual_filter and key == 27))
@@ -338,9 +283,9 @@ class ApplicationSynced(Application):
 
         if self.args.load_frame_data:
             self.board_object_corner_set = \
-                cio.load_frame_data(self.aux_data_file, self.cameras)
+                cio.load_frame_data(self.aux_data_file, self.videos)
 
-            usable_frame_ct = len(self.cameras[0].imgpoints)
+            usable_frame_ct = len(self.videos[0].image_points)
 
             for i_frame in range(usable_frame_ct):  # @UnusedVariable
                 self.object_points.append(self.board_object_corner_set)
@@ -354,7 +299,7 @@ class ApplicationSynced(Application):
                 usable_frame_ct = self.run_capture()
             if self.args.save_frame_data:
                 cio.save_frame_data(self.aux_data_file, os.path.join(self.args.folder, self.args.aux_data_file),
-                                    self.cameras, self.board_object_corner_set)
+                                    self.videos, self.board_object_corner_set)
 
         print("Total usable frames: {0:d} ({1:.3%})"
               .format(usable_frame_ct, float(usable_frame_ct) / self.total_frames))
@@ -371,42 +316,29 @@ class ApplicationSynced(Application):
             print("Testing existing calibration (no output will be saved)...")
         else:
             print("Calibrating for max. {0:d} iterations...".format(self.args.max_iterations))
-
-        if len(self.cameras) > 1:
-            cutils.stereo_calibrate(self.rig,
-                                    self.object_points,
-                                    self.args.use_fisheye_model,
-                                    self.args.use_rational_model,
-                                    self.args.use_tangential_coeffs,
-                                    self.args.use_thin_prism,
-                                    self.args.fix_radial,
-                                    self.args.fix_thin_prism,
-                                    self.args.precalibrate_solo,
-                                    self.args.stereo_only,
-                                    self.args.max_iterations,
-                                    self.args.input_calibration is not None)
+        calibrate(self.rig, self.videos,
+                  self.object_points,
+                  self.args.use_fisheye_model,
+                  self.args.use_rational_model,
+                  self.args.use_tangential_coeffs,
+                  self.args.use_thin_prism,
+                  self.args.fix_radial,
+                  self.args.fix_thin_prism,
+                  self.args.precalibrate_solo,
+                  self.args.stereo_only,
+                  self.args.max_iterations,
+                  self.args.input_calibration is not None)
+        if len(self.videos) > 1:
             if self.args.preview:
                 l_im = cv2.imread(osp.join(self.args.folder, self.args.preview_files[0]))
                 r_im = cv2.imread(osp.join(self.args.folder, self.args.preview_files[1]))
-                l_im, r_im = cutils.undistort_stereo(self.rig, l_im, r_im)
+                l_im, r_im = undistort_stereo(self.rig, l_im, r_im)
                 path_l = osp.join(self.args.folder, self.args.preview_files[0][:-4] + "_rect.png")
                 path_r = osp.join(self.args.folder, self.args.preview_files[1][:-4] + "_rect.png")
                 cv2.imwrite(path_l, l_im)
                 cv2.imwrite(path_r, r_im)
-            calibration_result = self.rig
-        else:
-            cutils.calibrate_wrapper(self.camera, self.object_points,
-                                     self.args.use_rational_model,
-                                     self.args.use_tangential_coeffs,
-                                     self.args.use_thin_prism,
-                                     self.args.fix_radial,
-                                     self.args.fix_thin_prism,
-                                     self.args.max_iterations,
-                                     self.args.input_calibration is not None,
-                                     self.args.test)
-            calibration_result = self.camera
         if not self.args.skip_printing_output:
-            print(calibration_result)
+            print(self.rig)
         if not self.args.skip_saving_output and not self.args.test:
             cio.save_opencv_calibration(osp.join(self.args.folder, self.args.output),
-                                        calibration_result)
+                                        self.rig)

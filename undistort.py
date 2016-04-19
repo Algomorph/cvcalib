@@ -5,7 +5,7 @@ import sys
 import os.path as osp
 import cv2#@UnresolvedImport
 from common.args import required_length
-from calib.rig import StereoRig
+from calib.rig import Rig
 from calib.data import CameraIntrinsics
 from calib.camera import Camera
 
@@ -40,7 +40,7 @@ def main(argv=None):
     if(args.verbose):
         print(calibration_info)
     
-    if(type(calibration_info) == StereoRig):
+    if(type(calibration_info) == Rig):
         if(len(args.images) < 2):
             raise ValueError("Got a stereo calibration result but less than two input images. Aborting.")
         if(len(args.output) < 2):

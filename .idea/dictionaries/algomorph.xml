@@ -4,6 +4,7 @@
       <w>calib</w>
       <w>coeffs</w>
       <w>extrinsics</w>
+      <w>filenames</w>
       <w>fisheye</w>
       <w>intrinsics</w>
       <w>kramida</w>
@@ -11,6 +12,7 @@
       <w>opencv</w>
       <w>precalibrate</w>
       <w>reprojection</w>
+      <w>subpixel</w>
       <w>undistort</w>
       <w>unsynced</w>
       <w>unsynchronized</w>
