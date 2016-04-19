@@ -44,53 +44,10 @@ class ApplicationUnsynced(Application):
         """
         Application.__init__(self, args)
 
-        self.frame_numbers = {}
-
-        intrinsic_arr = []
-
         if args.input_calibration is None or len(args.input_calibration) == 0:
             raise ValueError("Unsynced calibration requires input calibration parameters for all " +
                              "cameras used to take the videos.")
 
-        # load calibration files
-        initial_calibration = []
-        for calib_file in args.input_calibration:
-            initial_calibration.append(cio.load_opencv_calibration(os.path.join(args.folder, calib_file)))
-
-        # TODO Rig can now have an arbitrary number of cameras. Accomodate.
-
-        # sanity checks & calibration arrangement
-        if type(initial_calibration[0]) == Rig:
-            for calibration_info in initial_calibration:
-                if type(calibration_info) != Rig:
-                    # TODO combine with the other thing... remove type restriction, just keep track of the total number
-                    raise TypeError("For stereo, all calibration files should contain stereo information. Expecting: " +
-                                    str(Rig) + ". Got: " + str(type(calibration_info)))
-                intrinsic_arr += calibration_info.intrinsics  # aggregate intrinsics into a single array
-            if len(args.videos) % 2 != 0:
-                raise ValueError("Provided stereo input calibration files: expecting an even " +
-                                 "number of videos. Got: {:d}".format(len(args.videos)))
-            if len(initial_calibration) != len(args.videos) // 2:
-                raise ValueError("Number of stereo calibration files is not half the number of videos.")
-        else:
-            if len(initial_calibration) != len(args.videos):
-                raise ValueError("Number of intrinsics files is does not equal the number of videos.")
-            for calibration_info in initial_calibration:
-                if type(calibration_info) == Camera:
-                    intrinsic_arr.append(calibration_info.intrinsics)
-                elif type(calibration_info) == Camera.Intrinsics:
-                    intrinsic_arr.append(calibration_info)
-                else:
-                    raise RuntimeError("Unsupported calibration file format.")
-
-        ix_video = 0
-        self.cameras = []
-        self.videos = []
-        # load videos
-        for video_filename in args.videos:
-            self.videos.append(Video(os.path.join(args.folder, video_filename)))
-            self.cameras.append(Camera(intrinsics=intrinsic_arr[ix_video]))
-            ix_video += 1
         if len(self.cameras) < 2:
             raise ValueError(
                 "Expecting at least two videos & input calibration parameters for the corresponding videos")
@@ -263,7 +220,7 @@ class ApplicationUnsynced(Application):
 
                     if add_corners:
                         video.add_corners(i_frame, self.criteria_subpix,
-                                           self.full_frame_folder_path, self.args.save_images)
+                                          self.full_frame_folder_path, self.args.save_images)
                         video.find_current_pose(self.board_object_corner_set)
 
                         cur_corners = video.image_points[len(video.image_points) - 1]
@@ -331,7 +288,6 @@ class ApplicationUnsynced(Application):
                 video.poses.append(pose)
 
             ix_cam += 1
-
 
     @staticmethod
     def __aux_streak_within(source_streak, target_streak):

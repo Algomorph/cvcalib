@@ -23,7 +23,10 @@ import os
 import os.path as osp
 import re, datetime
 import cv2
-
+from calib.camera import Camera
+from calib.rig import Rig
+from calib.video import Video
+from calib.io import load_opencv_calibration
 
 class Application(object):
     """
@@ -69,3 +72,33 @@ class Application(object):
             args.output = "intrinsics{0:s}.xml".format(re.sub(r"-|:", "",
                                                               str(datetime.datetime.now())[:-7])
                                                        .replace(" ", "-"))
+
+        self.videos = [(Video(os.path.join(args.folder, video_filename)) for video_filename in args.videos)]
+        if args.input_calibration is not None:
+            intrinsic_arr = []
+            # load calibration files
+            initial_calibration = []
+            for calib_file in args.input_calibration:
+                initial_calibration.append(load_opencv_calibration(os.path.join(args.folder, calib_file)))
+
+            for calibration_info in initial_calibration:
+                if type(calibration_info) == Rig:
+                    for camera in calibration_info.cameras:
+                        intrinsic_arr.append(camera.intrinsics)
+                if type(calibration_info) == Camera:
+                    intrinsic_arr.append(calibration_info.intrinsics)
+                elif type(calibration_info) == Camera.Intrinsics:
+                    intrinsic_arr.append(calibration_info)
+                else:
+                    raise RuntimeError("Unsupported calibration file format.")
+
+            if len(intrinsic_arr) != len(args.videos):
+                raise ValueError("The total number of intrinsics in all the provided input calibration files " +
+                                 "combined ({:d}) does not equal the total number provided of video file paths ({:d})." +
+                                 "These numbers must match."
+                                 .format(len(intrinsic_arr), len(args.videos)))
+            self.cameras = [Camera(intrinsics=intrinsics) for intrinsics in intrinsic_arr]
+        else:
+            self.cameras = [Camera(resolution=video.frame_dims) for video in self.videos]
+        self.rig = Rig(tuple(self.cameras))
+

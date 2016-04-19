@@ -47,55 +47,7 @@ class ApplicationSynced(Application):
         self.total_frames = min([video.frame_count for video in self.videos])
 
         # TODO: redesign for arbitrary number of videos & cameras
-        if len(args.videos) == 1:
-            if args.input_calibration is not None:
-                full_path = osp.join(args.folder, args.input_calibration[0])
-                initial_calibration1 = cio.load_opencv_calibration(full_path)
-                if type(initial_calibration1) == Rig:
-                    raise ValueError("Got only one camera input, \'{0:s}\', but a stereo calibration " +
-                                     "input file '{0:s}'. Please provide a single camera's intrinsics."
-                                     .format(self.camera.name, args.input_calibration))
-                elif type(initial_calibration1) == Camera:
-                    self.camera = initial_calibration1
-                elif type(initial_calibration1) == Camera.Intrinsics:
-                    self.camera = Camera(intrinsics=initial_calibration1)
-                else:
-                    raise TypeError("(:s) Unsupported calibration type: {:s}"
-                                    .format(ApplicationSynced.__name__, str(type(initial_calibration1))))
-            else:
-                self.camera = Camera(os.path.join(args.folder, args.videos[0]))
-            self.rig = Rig((self.camera,))
-        elif len(args.videos) == 2:
-            if args.input_calibration is not None:
-                full_path = osp.join(args.folder, args.input_calibration[0])
-                initial_calibration1 = cio.load_opencv_calibration(full_path)
-                if type(initial_calibration1) == Rig:
-                    self.rig = initial_calibration1
-                else:
-                    self.rig = Rig()
-                    if len(args.input_calibration) < 2:
-                        raise ValueError("Input calibration parameters need to have two" +
-                                         " sets of intrinsics for stereo calibration." +
-                                         "Please either provide a space delimited list of two separate" +
-                                         "files with intrinsics or a single stereo rig file as argument.")
-                    full_path = osp.join(args.folder, args.input_calibration[1])
-                    initial_calibration2 = cio.load_opencv_calibration(full_path)
-                    initial_calibration = [initial_calibration1, initial_calibration2]
-                    cameras = []
-                    for calib in initial_calibration:
-                        if type(calib) == Camera.Intrinsics:
-                            cameras.append(Camera(intrinsics=calib))
-                        elif type(calib) == Camera:
-                            cameras.append(calib)
-                        else:
-                            raise TypeError("(:s) Unsupported calibration type: {:s}"
-                                            .format(ApplicationSynced.__name__, str(type(initial_calibration1))))
-                    self.rig.cameras = cameras
-
-            else:
-                self.rig = Rig((Camera(os.path.join(args.folder, args.videos[0])),
-                                Camera(os.path.join(args.folder, args.videos[1]))))
-        else:
+        if len(args.videos) != 1 and len(args.videos) != 2:
             raise ValueError("This calibration tool can only work with single " +
                              "video files or video pairs from synchronized stereo. " +
                              "Provided number of videos: {:d}.".format(len(args.videos)))
