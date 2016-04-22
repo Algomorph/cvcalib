@@ -53,17 +53,17 @@ class ApplicationUnsynced(Application):
                 "Expecting at least two videos & input calibration parameters for the corresponding videos")
 
     # use this instead of just camera.approximate_corners for very "sparse" videos, with lots of bad frames
-    def __browse_around_frame(self, camera, around_frame, frame_range=64, interval=16, verbose=True):
+    def __browse_around_frame(self, video, around_frame, frame_range=64, interval=16, verbose=True):
         for i_frame in range(max(around_frame - frame_range, 0),
-                             min(around_frame + frame_range, camera.frame_count), interval):
-            camera.read_at_pos(i_frame)
+                             min(around_frame + frame_range, video.frame_count), interval):
+            video.read_at_pos(i_frame)
             if verbose:
                 print('-', end="", flush=True)
-            if camera.try_approximate_corners(self.board_dims):
+            if video.try_approximate_corners(self.board_dims):
                 return i_frame
         return -1
 
-    def __seek_calib_limit(self, camera, frame_range, max_miss_count=3, verbose=True):
+    def __seek_calib_limit(self, video, frame_range, max_miss_count=3, verbose=True):
         frame_range_signed_length = frame_range[1] - frame_range[0]
         sample_interval_frames = frame_range_signed_length // 2
         failed_attempts = 0
@@ -78,10 +78,10 @@ class ApplicationUnsynced(Application):
                         print("\nSampling every {:d} frames within {:s}.".format(sample_interval_frames,
                                                                                  str(frame_range)))
                 for i_frame in range(frame_range[0], frame_range[1], sample_interval_frames):
-                    camera.read_at_pos(i_frame)
+                    video.read_at_pos(i_frame)
                     if verbose:
                         print('.', end="", flush=True)
-                    if camera.try_approximate_corners(self.board_dims):
+                    if video.try_approximate_corners(self.board_dims):
                         frame_range[0] = i_frame
                         miss_count = 0
                     else:
@@ -97,7 +97,7 @@ class ApplicationUnsynced(Application):
                 if failed_attempts > 2:
                     raise RuntimeError("Too many failed attempts. Frame index: " + str(i_frame))
                 print("FFmpeg hickup, attempting to reopen video.")
-                camera.reopen()  # workaround for ffmpeg AVC/H.264 bug
+                video.reopen()  # workaround for ffmpeg AVC/H.264 bug
         return frame_range[0]
 
     def find_calibration_intervals(self, verbose=True):
@@ -110,10 +110,10 @@ class ApplicationUnsynced(Application):
                 rough_seek_range = (0, video.frame_count - 0)
             else:
                 rough_seek_range = (round(max(0, video.fps * self.args.time_range_hint[0])),
-                                    round(min(video.fps * self.args.time_range_hint[1], camera.frame_count - 0)))
+                                    round(min(video.fps * self.args.time_range_hint[1], video.frame_count - 0)))
 
             if verbose:
-                print("Performing initial rough scan of {0:s} for calibration board...".format(camera.name))
+                print("Performing initial rough scan of video {0:s} for calibration board...".format(video.name))
 
             found = False
             # find approximate start and end of calibration
@@ -142,26 +142,26 @@ class ApplicationUnsynced(Application):
                     if failed_attempts > 2:
                         raise RuntimeError("Too many failed attempts. Frame index: " + str(i_frame))
                     print("FFmpeg hickup, attempting to reopen video.")
-                    camera.reopen()  # workaround for ffmpeg AVC/H.264 bug
+                    video.reopen()  # workaround for ffmpeg AVC/H.264 bug
 
             # ** find exact start & end of streak **
 
             # traverse backward from inexact start
             if verbose:
-                print("Seeking first calibration frame of {0:s}...".format(camera.name))
-            calibration_start = self.__seek_calib_limit(camera, [calibration_start, rough_seek_range[0]],
+                print("Seeking first calibration frame of {0:s}...".format(video.name))
+            calibration_start = self.__seek_calib_limit(video, [calibration_start, rough_seek_range[0]],
                                                         max_miss_count=self.args.seek_miss_count, verbose=verbose)
 
             # traverse forward from inexact end
             if verbose:
-                print("Seeking last calibration frame of {0:s}...".format(camera.name))
-            calibration_end = self.__seek_calib_limit(camera, [calibration_end, rough_seek_range[1]],
+                print("Seeking last calibration frame of {0:s}...".format(video.name))
+            calibration_end = self.__seek_calib_limit(video, [calibration_end, rough_seek_range[1]],
                                                       max_miss_count=self.args.seek_miss_count, verbose=verbose)
 
-            camera.calibration_interval = (calibration_start, calibration_end)
+            video.calibration_interval = (calibration_start, calibration_end)
             if verbose:
                 print("Found calibration frame range for camera {:s} to be within {:s}"
-                      .format(camera.name, str(camera.calibration_interval)))
+                      .format(video.name, str(video.calibration_interval)))
             ix_vid += 1
 
         end = time.time()
@@ -220,7 +220,9 @@ class ApplicationUnsynced(Application):
 
                     if add_corners:
                         video.add_corners(i_frame, self.criteria_subpix,
-                                          self.full_frame_folder_path, self.args.save_images)
+                                          self.full_frame_folder_path,
+                                          self.args.save_images,
+                                          self.args.save_checkerboard_overlays)
                         video.find_current_pose(self.board_object_corner_set)
 
                         cur_corners = video.image_points[len(video.image_points) - 1]

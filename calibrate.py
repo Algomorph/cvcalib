@@ -139,6 +139,10 @@ class Setting(Enum):
     save_images = Argument(False, '?', 'bool_flag', 'store_true',
                            "Save images picked out for calibration. Synced mode only.",
                            console_only=False, required=False)
+    save_checkerboard_overlays = Argument(default=False, arg_type='bool_flag', action='store_true',
+                                          arg_help="Save checkerboard overlays alongside the actual raw frame " +
+                                                   "images picked out. Only works when `save_images` is enabled.")
+
     load_images = Argument(False, '?', 'bool_flag', 'store_true',
                            "Load images previously picked out for calibration (skips frame gathering). Synced only.",
                            console_only=False, required=False)

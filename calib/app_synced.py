@@ -130,7 +130,9 @@ class ApplicationSynced(Application):
 
         for video in self.videos:
             video.add_corners(i_frame, self.criteria_subpix,
-                              self.full_frame_folder_path, self.args.save_images)
+                              self.full_frame_folder_path,
+                              self.args.save_images,
+                              self.args.save_checkerboard_overlays)
         self.object_points.append(self.board_object_corner_set)
 
     def filter_frame_manually(self):

@@ -5,7 +5,7 @@ Created on Jan 1, 2016
 """
 from lxml import etree
 import numpy as np
-from calib import data, camera as camera_module, geom, rig
+from calib import camera as camera_module, geom, rig
 from calib.geom import Pose
 from calib.camera import Camera
 
@@ -148,7 +148,7 @@ def load_opencv_calibration(path):
     tree = etree.parse(path)
     first_elem = tree.getroot().getchildren()[0]
     class_name = first_elem.tag
-    modules = [data, camera_module, rig]
+    modules = [camera_module, rig]
     object_class = None
     for module in modules:
         if hasattr(module, class_name):

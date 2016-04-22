@@ -10,6 +10,7 @@ class Video(object):
     A wrapper around the OpenCV video capture,
     intended only for reading video files and obtaining data relevant for calibration
     """
+
     def __init__(self, path, load=True):
         self.cap = None
         if path[-3:] != "mp4":
@@ -116,6 +117,7 @@ class Video(object):
     def try_approximate_corners(self, board_dims):
         found, corners = cv2.findChessboardCorners(self.frame, board_dims)
         self.current_image_points = corners
+        self.current_board_dims = board_dims
         return found
 
     def find_current_pose(self, object_points, intrinsics):
@@ -144,13 +146,21 @@ class Video(object):
         rms = math.sqrt(((img_pts - est_pts) ** 2).sum() / len(object_points))
         return rms
 
-    def add_corners(self, i_frame, subpixel_criteria, frame_folder_path, save_image):
+    # TODO: passing in both frame_folder_path and save_image doesn't make sense. Make saving dependent on the former.
+    def add_corners(self, i_frame, subpixel_criteria, frame_folder_path=None,
+                    save_image=False, save_chekerboard_overlay=False):
         grey_frame = cv2.cvtColor(self.frame, cv2.COLOR_BGR2GRAY)
         cv2.cornerSubPix(grey_frame, self.current_image_points, (11, 11), (-1, -1), subpixel_criteria)
         if save_image:
             png_path = (os.path.join(frame_folder_path,
                                      "{0:s}{1:04d}{2:s}".format(self.name, i_frame, ".png")))
             cv2.imwrite(png_path, self.frame)
+            if save_chekerboard_overlay:
+                png_path = (os.path.join(frame_folder_path,
+                                         "checkerboard_{0:s}{1:04d}{2:s}".format(self.name, i_frame, ".png")))
+                overlay = self.frame.copy()
+                cv2.drawChessboardCorners(overlay, self.current_board_dims, self.current_image_points, True)
+                cv2.imwrite(png_path, overlay)
         self.usable_frames[i_frame] = len(self.image_points)
         self.image_points.append(self.current_image_points)
 

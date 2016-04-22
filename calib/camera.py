@@ -271,4 +271,4 @@ class Camera(object):
             extrinsics = Camera.Extrinsics.from_xml(extrinsics_elem)
         else:
             extrinsics = Camera.Extrinsics()
-        return Camera(intrinsics, extrinsics)
+        return Camera(None, intrinsics, extrinsics)
