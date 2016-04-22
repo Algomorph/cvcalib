@@ -4,7 +4,8 @@ Powerful console application for calibration (including stereo calibration) of c
 
 ###News Update
 
-The master now the upstream development branch. Use tags to get more stable versions.
+The master branch is now the upstream development branch. Use tags to get more stable versions.
+Unsynced mode is WIP for the latest tag, don't use it just yet. It uses an algorithm that uses the assumption that cameras are static with respect to each other and the provided intrinsics in order to determine proper time offset between the videos *and* come up with an extrinsics calibration.The preliminary results are promising, and I hope to get a fully-functional version up by Fall 2016.
 
 ###What the heck is *sync_based_on_audio.py*?
 
