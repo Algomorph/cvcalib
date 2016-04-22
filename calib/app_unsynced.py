@@ -286,7 +286,7 @@ class ApplicationUnsynced(Application):
             for ix_pose in range(len(rotations)):
                 translation = translations[ix_pose]
                 rotation = rotations[ix_pose]
-                pose = Pose(rotation_vector=rotation, translation_vector=translation)
+                pose = Pose(rotation=rotation, translation_vector=translation)
                 video.poses.append(pose)
 
             ix_cam += 1

@@ -130,7 +130,7 @@ class Video(object):
                                                                           intrinsics.distortion_coeffs,
                                                                           flags=cv2.SOLVEPNP_ITERATIVE)[0:3]
         if success:
-            self.poses.append(Pose(rotation_vector=rotation_vector, translation_vector=translation_vector))
+            self.poses.append(Pose(rotation=rotation_vector, translation_vector=translation_vector))
         else:
             self.poses.append(None)
         return success

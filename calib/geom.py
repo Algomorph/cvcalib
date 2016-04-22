@@ -9,8 +9,8 @@ import numpy as np
 
 
 def generate_board_object_points(board_height, board_width, board_square_size):
-    board_dims = (board_width,board_height)
-    object_points = np.zeros((board_height*board_width,1,3), np.float32)
+    board_dims = (board_width, board_height)
+    object_points = np.zeros((board_height*board_width, 1, 3), np.float32)
     object_points[:, :, :2] = np.indices(board_dims).T.reshape(-1, 1, 2)
     # convert square sizes to meters
     object_points *= board_square_size
@@ -22,25 +22,33 @@ def homogenize_4vec(vec):
 
 
 class Pose(object):
-    def __init__(self, transform=None, inverse_transform=None, rotation_vector=None, translation_vector=None):
+    def __init__(self, transform=None, inverse_transform=None, rotation=None, translation_vector=None):
+        if rotation is not None:
+            if rotation.size == 9:
+                rotation_vector = cv2.Rodrigues(rotation)[0]
+                rotation_matrix = rotation
+            elif rotation.size == 3:
+                rotation_matrix = cv2.Rodrigues(rotation)[0]
+                rotation_vector = rotation
+            else:
+                raise ValueError("Wrong rotation size: {:d}. Expecting a 3-length vector or 3x3 matrix.".format(rotation.size))
         if transform is None:
-            if translation_vector is None or rotation_vector is None:
+            if translation_vector is None or rotation is None:
                 raise (ValueError("Expecting either the transform matrix or both the rotation & translation vector"))
-            rotation_matrix = cv2.Rodrigues(rotation_vector)[0]
             self.T = np.vstack((np.append(rotation_matrix, translation_vector, 1), [0, 0, 0, 1]))
         else:
             self.T = transform
             if translation_vector is None:
                 translation_vector = transform[0:3, 3].reshape(3, 1)
-            if rotation_vector is None:
-                rot_mat = transform[0:3, 0:3]
-                rotation_vector = cv2.Rodrigues(rot_mat)[0]
+            if rotation is None:
+                rotation_matrix = transform[0:3, 0:3]
+                rotation_vector = cv2.Rodrigues(rotation_matrix)[0]
         if inverse_transform is None:
-            rot_mat = cv2.Rodrigues(rotation_vector)[0]
-            rot_mat_inv = rot_mat.T
+            rot_mat_inv = rotation_matrix.T
             inverse_translation = -rot_mat_inv.dot(translation_vector)
             inverse_transform = np.vstack((np.append(rot_mat_inv, inverse_translation, 1), [0, 0, 0, 1]))
 
+        self.rmat = rotation_matrix
         self.tvec = translation_vector
         self.rvec = rotation_vector
         self.T_inv = inverse_transform
