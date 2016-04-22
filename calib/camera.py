@@ -262,12 +262,12 @@ class Camera(object):
         @return a new Camera object constructed from XML node with matrices in OpenCV format
         """
         intrinsics_elem = element.find(Camera.Intrinsics.__name__)
-        if intrinsics_elem:
+        if intrinsics_elem is not None:
             intrinsics = Camera.Intrinsics.from_xml(intrinsics_elem)
         else:
             intrinsics = Camera.Intrinsics(DEFAULT_RESOLUTION)
         extrinsics_elem = element.find(Camera.Extrinsics.__name__)
-        if extrinsics_elem:
+        if extrinsics_elem is not None:
             extrinsics = Camera.Extrinsics.from_xml(extrinsics_elem)
         else:
             extrinsics = Camera.Extrinsics()

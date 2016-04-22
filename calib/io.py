@@ -120,7 +120,7 @@ def load_opencv_stereo_calibration(path):
     @rtype calib.data.StereoRig
     """
     tree = etree.parse(path)
-    stereo_calib_elem = tree.find("StereoRig")
+    stereo_calib_elem = tree.find("Rig")
     return rig.Rig.from_xml(stereo_calib_elem)
 
 
@@ -157,10 +157,10 @@ def load_opencv_calibration(path):
         # legacy rig format
         if class_name == "StereoRig":
             object_class = rig.Rig
-        if class_name == "CameraIntrinsics":
+        elif class_name == "CameraIntrinsics":
             object_class = Camera.Intrinsics
         else:
-            raise ValueError("Unexpected calibration format in file {0:s}".format(path))
+            raise ValueError("Unexpected calibration format in file {:s}, got XML tag {:s}".format(path, class_name))
     calib_info = object_class.from_xml(first_elem)
     return calib_info
 
