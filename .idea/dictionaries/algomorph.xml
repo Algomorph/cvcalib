@@ -3,9 +3,11 @@
     <words>
       <w>calib</w>
       <w>coeffs</w>
+      <w>debian</w>
       <w>extrinsics</w>
       <w>filenames</w>
       <w>fisheye</w>
+      <w>genlocked</w>
       <w>intrinsics</w>
       <w>kramida</w>
       <w>laplacian</w>

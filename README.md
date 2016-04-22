@@ -12,7 +12,7 @@ This is for automated video syncing using sound. Sound has very high temporal re
 
 ###What's so powerful about *calibrate_video_opencv.py*?
 
-It allowes you to set various ways to filter off unwanted frames. The most critical is `--frame_count_target=X` or `--ft=X`, where X is an integer, representing approximately how many frames you want to cherry-pick for the calibration. The reason this number is important is that runtime of the OpenCV calibration routine increases with the number of frames you pass it in a faster-than-linear way, i.e. conisder a I7-4790K CPU taking about 8 hours to calibrate based on 200 frames. Specifying the target frame number will cause the frame gathering algorithm to skip over even intervalls in the video(s) before sifting through frames to pick out the next one to sample.
+It allows you to set various ways to filter off unwanted frames. The most critical is `--frame_count_target=X` or `--ft=X`, where X is an integer, representing approximately how many frames you want to cherry-pick for the calibration. The reason this number is important is that runtime of the OpenCV calibration routine increases with the number of frames you pass it in a faster-than-linear way, i.e. consider a I7-4790K CPU taking about 8 hours to calibrate based on 200 frames. Specifying the target frame number will cause the frame gathering algorithm to skip over even intervals in the video(s) before sifting through frames to pick out the next one to sample.
 
 Other filters include frame sharpness (calculated as variance of the image convolved with the Laplacian operator), minimum raw pixel difference from the previously-sampled frame, and a manual filter that uses OpenCV GUI routines to display the images to be accepted or rejected via keyboard strokes.
 
@@ -37,14 +37,14 @@ Using [pip](https://pypi.python.org/pypi/pip), the python packages (marked with 
 * `pip install pyyaml`
 * `pip install scipy`
 
-**Note**: on many Linux distributions, i.e. Ubuntu-based, pip for python3 is envoked with the `pip3` command instead of `pip`. It is also recommended to install `libyaml` prior to installing `pyyaml` if it is easy to do so; on Debian-based you can try `sudo apt-get install libyaml-dev`. For `scipy` installation, a fortran compiler is required (`sudo apt-get install gfortran` for Debian-based). 
+**Note**: on many Linux distributions, i.e. Ubuntu-based, pip for python3 is evoked with the `pip3` command instead of `pip`. It is also recommended to install `libyaml` prior to installing `pyyaml` if it is easy to do so; on Debian-based you can try `sudo apt-get install libyaml-dev`. For `scipy` installation, a fortran compiler is required (`sudo apt-get install gfortran` for Debian-based).
 
-**Note for Windows Users**: Windows users are recommended to get the required python binaries and their dependencies, including Numpy, at Christoph Gohlke's page [Unofficial Python Extensions for Winodws](http://www.lfd.uci.edu/~gohlke/pythonlibs/). These can be installed via the `pip wheel <package_file_path>` command from a command prompt with administrative privileges.
+**Note for Windows Users**: Windows users are recommended to get the required python binaries and their dependencies, including Numpy, at Christoph Gohlke's page [Unofficial Python Extensions for Windows](http://www.lfd.uci.edu/~gohlke/pythonlibs/). These can be installed via the `pip wheel <package_file_path>` command from a command prompt with administrative privileges.
 
 ###Usage
 
 *calibrate_video_opencv.py*:
-See output of `python calib_video_opencv.py --help` (again, python 3 is usually envoked via `python3` on Linux). In most Linux/Unix shells, you can also run `./calib_video_opencv.py --help` provided you grant the file necessary permissions.
+See output of `python calib_video_opencv.py --help` (again, python 3 is usually evoked via `python3` on Linux). In most Linux/Unix shells, you can also run `./calib_video_opencv.py --help` provided you grant the file necessary permissions.
 
 *calibrate_video_opencv.py*:
 See output of `python sync_based_on_audio.py --help`, all notes above for the calibration script also apply.
@@ -90,6 +90,6 @@ im_size = cv::Size(static_cast<int>(intrinsics_0_node["resolution"]["width"]),
 ###Calibration Tips
 Calibration experts: skip this section.
 
-The provided tiny calibration board will only work well for calibrating at short distances (within half a meter or so). I recommend a larger calibration board, with larger and more squares for greater distances. Any calibration board should be snugly mounted on a completely flat, unbending surface. During calibration, aim for variety of angles and positions (including depth) of the board within the image frame. Calibration of cameras with autofocus is not supported, since the algorithm assumes camera intrinsics (inculding focal distance) are static. On such cameras, you have to find a way to fix the focus. Also, keep in mind, calibration process does not yield acutal focal length (look to your camera manufacturer for that information, as well as the actual metric size of the image sensor).
+The provided tiny calibration board will only work well for calibrating at short distances (within half a meter or so). I recommend a larger calibration board, with larger and more squares for greater distances. Any calibration board should be snugly mounted on a completely flat, unbending surface. During calibration, aim for variety of angles and positions (including depth) of the board within the image frame. Calibration of cameras with auto-focus is not supported, since the algorithm assumes camera intrinsics (including focal distance) are static. On such cameras, you have to find a way to fix the focus. Also, keep in mind, calibration process does not yield actual focal length (look to your camera manufacturer for that information, as well as the actual metric size of the image sensor).
 
 **Happy calibration!**
