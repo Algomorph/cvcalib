@@ -21,10 +21,10 @@ from abc import ABCMeta
 import os
 import os.path as osp
 
-from common.app import Application
+from common.app import VideoProcessingApplication
 
 
-class CalibrationApplication(Application):
+class CalibrationApplication(VideoProcessingApplication):
     """
         Base-level abstract Calibration Application class. Contains routines shared
         by all calibration applications.

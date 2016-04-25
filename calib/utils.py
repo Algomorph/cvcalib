@@ -23,8 +23,7 @@ import time
 import cv2
 
 
-def undistort_stereo(stereo_rig, test_im_left, test_im_right, size_factor):
-    im_size = test_im_left.shape
+def compute_rectification_maps(stereo_rig, im_size, size_factor):
     new_size = (int(im_size[1] * size_factor), int(im_size[0] * size_factor))
     rotation1, rotation2, pose1, pose2 = \
         cv2.stereoRectify(cameraMatrix1=stereo_rig.cameras[0].intrinsic_mat,
@@ -42,6 +41,12 @@ def undistort_stereo(stereo_rig, test_im_left, test_im_right, size_factor):
     map2x, map2y = cv2.initUndistortRectifyMap(stereo_rig.cameras[1].intrinsic_mat,
                                                stereo_rig.cameras[1].distortion_coeffs,
                                                rotation2, pose2, new_size, cv2.CV_32FC1)
+    return map1x, map1y, map2x, map2y
+
+
+def undistort_stereo(stereo_rig, test_im_left, test_im_right, size_factor):
+    im_size = test_im_left.shape
+    map1x, map1y, map2x, map2y = compute_rectification_maps(stereo_rig, im_size, size_factor)
     rect_left = cv2.remap(test_im_left, map1x, map1y, cv2.INTER_LINEAR)
     rect_right = cv2.remap(test_im_right, map2x, map2y, cv2.INTER_LINEAR)
     return rect_left, rect_right

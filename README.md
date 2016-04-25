@@ -69,9 +69,9 @@ cv::FileNode stereo_calib_node = fs["Rig"];
 cv::FileNode cameras_node = stereo_calib_node["Cameras"];
 cv::FileNode camera_0_node = cameras_node[0];
 cv::FileNode camera_1_node = cameras_node[1];
-cv::FileNode intrinsics_0_node = camera_0_node["Intrinsics"]
-cv::FileNode intrinsics_1_node = camera_1_node["Intrinsics"]
-cv::FileNode extrinsics_node = camera_1_node["Extrinsics"]
+cv::FileNode intrinsics_0_node = camera_0_node["Intrinsics"];
+cv::FileNode intrinsics_1_node = camera_1_node["Intrinsics"];
+cv::FileNode extrinsics_node = camera_1_node["Extrinsics"];
 
 cv::Mat K0, d0, K1, d1, R, T;
 cv::Size im_size;

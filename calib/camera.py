@@ -22,6 +22,7 @@ limitations under the License.
 from lxml import etree
 import calib.xml as xml
 import numpy as np
+from cv2 import remap, INTER_LINEAR
 
 DEFAULT_RESOLUTION = (1080, 1920)
 
@@ -65,7 +66,7 @@ class Camera(object):
         """
 
         def __init__(self, resolution, intrinsic_mat=None,
-                     distortion_coeffs=np.zeros(8, np.float64),
+                     distortion_coeffs=None,
                      error=-1.0, time=0.0):
             """
             Constructor
@@ -85,6 +86,8 @@ class Camera(object):
                 intrinsic_mat[0, 2] = resolution[1] / 2
                 intrinsic_mat[1, 2] = resolution[0] / 2
             self.intrinsic_mat = intrinsic_mat
+            if distortion_coeffs is None:
+                distortion_coeffs = np.zeros((8, 1), np.float64)
             self.distortion_coeffs = distortion_coeffs
             self.resolution = resolution
             self.error = error
@@ -131,9 +134,10 @@ class Camera(object):
             error, time = _error_and_time_from_xml(element)
             return Camera.Intrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time)
 
+    # TODO: Rename to and combine with "Pose" from calib.geom
+
     class Extrinsics(object):
-        def __init__(self, rotation=None, translation=None, essential_mat=None,
-                     fundamental_mat=None, error=-1.0, time=0.0):
+        def __init__(self, rotation=None, translation=None, error=-1.0, time=0.0):
             """
             Constructor
             @type rotation: numpy.ndarray
@@ -148,25 +152,17 @@ class Camera(object):
             if rotation is None:
                 rotation = np.eye(3, dtype=np.float64)
             if translation is None:
-                translation = np.zeros((1,3), np.float64)
-            if essential_mat is None:
-                essential_mat = np.eye(3, dtype=np.float64)
-            if fundamental_mat is None:
-                fundamental_mat = np.eye(3, dtype=np.float64)
+                translation = np.zeros((1, 3), np.float64)
             self.rotation = rotation
             self.translation = translation
-            self.essential_mat = essential_mat
-            self.fundamental_mat = fundamental_mat
             self.error = error
             self.time = time
             self.timestamp = None
 
         def __str__(self):
-            return (("{:s}\nRotation:\n{:s}\nTranslation:\n{:s}\nEssential Matrix:\n{:s}" +
-                     "\nFundamental Matrix:\n{:s}\nError: {:f}\nTime: {:f}")
+            return ("{:s}\nRotation:\n{:s}\nTranslation:\n{:s}\nError: {:f}\nTime: {:f}"
                     .format(self.__class__.__name__, str(self.rotation),
-                            str(self.translation), str(self.essential_mat),
-                            str(self.fundamental_mat), self.error, self.time))
+                            str(self.translation), self.error, self.time))
 
         def to_xml(self, root_element, as_sequence=False):
             """
@@ -186,9 +182,6 @@ class Camera(object):
 
             xml.make_opencv_matrix_xml_element(extrinsics_elem, self.rotation, "rotation")
             xml.make_opencv_matrix_xml_element(extrinsics_elem, self.translation, "translation")
-            xml.make_opencv_matrix_xml_element(extrinsics_elem, self.essential_mat, "essential_mat")
-            xml.make_opencv_matrix_xml_element(extrinsics_elem, self.fundamental_mat,
-                                               "fundamental_mat")
             _error_and_time_to_xml(extrinsics_elem, self.error, self.time)
 
         @staticmethod
@@ -205,11 +198,8 @@ class Camera(object):
                 return Camera.Extrinsics()
             rotation = xml.parse_xml_matrix(element.find("rotation"))
             translation = xml.parse_xml_matrix(element.find("translation"))
-            essential_mat = xml.parse_xml_matrix(element.find("essential_mat"))
-            fundamental_mat = xml.parse_xml_matrix(element.find("fundamental_mat"))
             error, time = _error_and_time_from_xml(element)
-            return Camera.Extrinsics(rotation, translation, essential_mat,
-                                     fundamental_mat, error, time)
+            return Camera.Extrinsics(rotation, translation, error, time)
 
     def __init__(self, resolution=None, intrinsics=None, extrinsics=None):
         """
@@ -226,8 +216,22 @@ class Camera(object):
         else:
             self.extrinsics = extrinsics
 
+        # for undistortion
+        self.map_x = None
+        self.map_y = None
+
+    def rectify_image(self, image):
+        return remap(image, self.map_x, self.map_y, INTER_LINEAR)
+
     def copy(self):
         return Camera(intrinsics=self.intrinsics, extrinsics=self.extrinsics)
+
+    def __str__(self, *args, **kwargs):
+        if self.extrinsics.error > 0.0:
+            extrinsics_string = "\n" + str(self.extrinsics)
+        else:
+            extrinsics_string = ""
+        return Camera.__name__ + "\n" + str(self.intrinsics) + extrinsics_string
 
     def to_xml(self, root_element, as_sequence=False):
         """
@@ -247,13 +251,6 @@ class Camera(object):
         if self.extrinsics and self.extrinsics.error > 0.0:
             self.extrinsics.to_xml(camera_elem, False)
 
-    def __str__(self, *args, **kwargs):
-        if self.extrinsics.error > 0.0:
-            extrinsics_string = "\n" + str(self.extrinsics)
-        else:
-            extrinsics_string = ""
-        return Camera.__name__ + "\n" + str(self.intrinsics) + extrinsics_string
-
     @staticmethod
     def from_xml(element):
         """
@@ -262,6 +259,9 @@ class Camera(object):
         @return a new Camera object constructed from XML node with matrices in OpenCV format
         """
         intrinsics_elem = element.find(Camera.Intrinsics.__name__)
+        if intrinsics_elem is None:
+            # legacy format
+            intrinsics_elem = element.find("CameraIntrinsics")
         if intrinsics_elem is not None:
             intrinsics = Camera.Intrinsics.from_xml(intrinsics_elem)
         else:

@@ -25,11 +25,12 @@ import re
 import datetime
 import cv2
 from calib.camera import Camera
-from calib.rig import Rig
+from calib.rig import Rig, MultiStereoRig
 from calib.video import Video
 from calib.io import load_opencv_calibration
 
-class Application(object):
+
+class VideoProcessingApplication(object):
     """
         Base-level abstract Calibration Application class. Contains routines shared
         by all calibration applications.
@@ -40,7 +41,6 @@ class Application(object):
         """
         Base constructor
         """
-        #universal_stuff
         self.args = args
 
         self.aux_data_file = {}
@@ -79,10 +79,14 @@ class Application(object):
                 initial_calibration.append(load_opencv_calibration(os.path.join(args.folder, calib_file)))
 
             for calibration_info in initial_calibration:
-                if type(calibration_info) == Rig:
+                if type(calibration_info) == MultiStereoRig:
+                    for rig in calibration_info.rigs:
+                        for camera in rig.cameras:
+                            intrinsic_arr.append(camera.intrinsics)
+                elif type(calibration_info) == Rig:
                     for camera in calibration_info.cameras:
                         intrinsic_arr.append(camera.intrinsics)
-                if type(calibration_info) == Camera:
+                elif type(calibration_info) == Camera:
                     intrinsic_arr.append(calibration_info.intrinsics)
                 elif type(calibration_info) == Camera.Intrinsics:
                     intrinsic_arr.append(calibration_info)
@@ -94,8 +98,13 @@ class Application(object):
                                  "combined ({:d}) does not equal the total number provided of video file paths ({:d})." +
                                  "These numbers must match."
                                  .format(len(intrinsic_arr), len(args.videos)))
+
             self.cameras = [Camera(intrinsics=intrinsics) for intrinsics in intrinsic_arr]
+            if len(initial_calibration) == 1 and (type(initial_calibration[0] == Rig or
+                                                  type(initial_calibration[0]) == MultiStereoRig)):
+                self.rig = initial_calibration[0]
+            else:
+                self.rig = Rig(tuple(self.cameras))
         else:
             self.cameras = [Camera(resolution=video.frame_dims) for video in self.videos]
-        self.rig = Rig(tuple(self.cameras))
-
+            self.rig = Rig(tuple(self.cameras))

@@ -154,13 +154,15 @@ def load_opencv_calibration(path):
         if hasattr(module, class_name):
             object_class = getattr(module, class_name)
     if object_class is None:
-        # legacy rig format
-        if class_name == "StereoRig":
+        # legacy formats
+        if class_name == "_StereoRig":
             object_class = rig.Rig
         elif class_name == "CameraIntrinsics":
             object_class = Camera.Intrinsics
         else:
-            raise ValueError("Unexpected calibration format in file {:s}, got XML tag {:s}".format(path, class_name))
+            raise ValueError("Unexpected calibration format in file {:s}, got XML tag {:s}. "
+                             "For legacy StereoRig files, be sure to rename the tag to _StereoRig."
+                             .format(path, class_name))
     calib_info = object_class.from_xml(first_elem)
     return calib_info
 
