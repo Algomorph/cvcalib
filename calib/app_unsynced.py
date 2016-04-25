@@ -23,16 +23,14 @@ import cv2
 import numpy as np
 import math
 import calib.io as cio
-from calib.app import Application
+from calib.app import CalibrationApplication
 from calib.geom import Pose
-from calib.camera import Camera
-from calib.video import Video
 from calib.rig import Rig
 from calib.utils import calibrate_stereo, calibrate_intrinsics
 import logging, sys
 
 
-class ApplicationUnsynced(Application):
+class ApplicationUnsynced(CalibrationApplication):
     """
     ApplicationUnsynced
     """
@@ -42,7 +40,7 @@ class ApplicationUnsynced(Application):
         Constructor
         @type args: object
         """
-        Application.__init__(self, args)
+        super().__init__(args)
 
         if args.input_calibration is None or len(args.input_calibration) == 0:
             raise ValueError("Unsynced calibration requires input calibration parameters for all " +

@@ -76,7 +76,8 @@ class Argument(object):
         else:
             self.shorthand = "-" + shorthand
 
-
+#TODO: investigate enum inheritance. There is too much duplicate code between this script file and others, like
+#sync_based_on_audio.py and multistereo.py
 class Setting(Enum):
     # ================= SETTING FILE STORAGE ==========================================================================#
     settings_file = Argument(None, '?', str, 'store',

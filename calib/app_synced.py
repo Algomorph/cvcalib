@@ -23,22 +23,20 @@ import cv2
 import numpy as np
 from calib.utils import calibrate, undistort_stereo
 from calib import io as cio
-from calib.app import Application
-from calib.camera import Camera
+from calib.app import CalibrationApplication
 from calib.video import Video
-from calib.rig import Rig
 import sys
 import re
 
 
-class ApplicationSynced(Application):
+class ApplicationSynced(CalibrationApplication):
     """
     Application class for calibration of single cameras or genlocked stereo cameras
     """
     min_frames_to_calibrate = 4
 
     def __init__(self, args):
-        Application.__init__(self, args)
+        super().__init__(args)
 
         self.usable_frame_count = 0
 
