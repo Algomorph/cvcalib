@@ -62,8 +62,8 @@ class MultiStereoApplication(VideoProcessingApplication):
             rig.cameras[1].map_y = map2y
 
     def init_stereo_matcher(self):
-
-
+        # TODO
+        pass
 
     def compute_depth(self):
         """

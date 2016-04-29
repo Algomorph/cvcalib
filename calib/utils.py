@@ -26,20 +26,21 @@ import cv2
 def compute_rectification_maps(stereo_rig, im_size, size_factor):
     new_size = (int(im_size[1] * size_factor), int(im_size[0] * size_factor))
     rotation1, rotation2, pose1, pose2 = \
-        cv2.stereoRectify(cameraMatrix1=stereo_rig.cameras[0].intrinsic_mat,
-                          distCoeffs1=stereo_rig.cameras[0].distortion_coeffs,
-                          cameraMatrix2=stereo_rig.cameras[1].intrinsic_mat,
-                          distCoeffs2=stereo_rig.cameras[1].distortion_coeffs,
-                          imageSize=im_size,
-                          R=stereo_rig.rotation,
-                          T=stereo_rig.translation,
+        cv2.stereoRectify(cameraMatrix1=stereo_rig.cameras[0].intrinsics.intrinsic_mat,
+                          distCoeffs1=stereo_rig.cameras[0].intrinsics.distortion_coeffs,
+                          cameraMatrix2=stereo_rig.cameras[1].intrinsics.intrinsic_mat,
+                          distCoeffs2=stereo_rig.cameras[1].intrinsics.distortion_coeffs,
+                          imageSize=(im_size[1], im_size[0]),
+                          R=stereo_rig.cameras[1].extrinsics.rotation,
+                          T=stereo_rig.cameras[1].extrinsics.translation,
                           flags=cv2.CALIB_ZERO_DISPARITY,
-                          newImageSize=new_size)[0:4]
-    map1x, map1y = cv2.initUndistortRectifyMap(stereo_rig.cameras[0].intrinsic_mat,
-                                               stereo_rig.cameras[0].distortion_coeffs,
+                          newImageSize=new_size
+                          )[0:4]
+    map1x, map1y = cv2.initUndistortRectifyMap(stereo_rig.cameras[0].intrinsics.intrinsic_mat,
+                                               stereo_rig.cameras[0].intrinsics.distortion_coeffs,
                                                rotation1, pose1, new_size, cv2.CV_32FC1)
-    map2x, map2y = cv2.initUndistortRectifyMap(stereo_rig.cameras[1].intrinsic_mat,
-                                               stereo_rig.cameras[1].distortion_coeffs,
+    map2x, map2y = cv2.initUndistortRectifyMap(stereo_rig.cameras[1].intrinsics.intrinsic_mat,
+                                               stereo_rig.cameras[1].intrinsics.distortion_coeffs,
                                                rotation2, pose2, new_size, cv2.CV_32FC1)
     return map1x, map1y, map2x, map2y
 
