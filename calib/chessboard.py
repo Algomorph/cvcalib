@@ -42,18 +42,30 @@ def compute_inital_corner_likelihood(image):
     return corner_likelihood
 
 
-def find_chessboard_corners(greyscale_image, neighborhood_size = 10, max_theshold = .5):
+def __filter_candidate(greyscale_image, coord, neighborhood_size):
+    window = greyscale_image[coord[0] - neighborhood_size:coord[0] + neighborhood_size + 1,
+             coord[1] - neighborhood_size:coord[1] + neighborhood_size + 1]
+    grad_x = cv2.Sobel(window, cv2.CV_32FC1, dx=1, dy=0, ksize=3)
+    grad_y = cv2.Sobel(window, cv2.CV_32FC1, dx=0, dy=1, ksize=3)
+    grad_mag_flat = (np.abs(grad_x) + np.abs(grad_y)).flatten()
+    orientations_flat = (cv2.phase(grad_x, grad_y)).flatten()  # phase accuracy: about 0.3 degrees
+    hist = np.histogram(orientations_flat, bins=64, range=(0, 2 * pi), weights=grad_mag_flat)[0]
+
+    return hist
+
+
+def find_chessboard_corners(greyscale_image, neighborhood_size=10, candidate_threshold=.5):
     corner_likelihood = compute_inital_corner_likelihood(greyscale_image)
     # TODO: the absolute threshold should be statistically determined based on actual checkerboard images
-    candidates = peak_local_max(corner_likelihood, neighborhood_size, corner_likelihood.max()*max_theshold)
-    # TODO: this should be done on local neighborhoods!
+    candidates = peak_local_max(corner_likelihood, neighborhood_size, corner_likelihood.max() * candidate_threshold)
+    bordered_image = cv2.copyMakeBorder(greyscale_image, neighborhood_size, neighborhood_size, neighborhood_size,
+                                        neighborhood_size, cv2.BORDER_CONSTANT, value=0)
+    detected_corners = []
+    # for candidate in candidates:
+    #     if __filter_candidate(bordered_image, candidate, neighborhood_size):
+    #         detected_corners.append(candidate)
 
-    grad_x = cv2.Sobel(greyscale_image, cv2.CV_64FC1, dx=1, dy=0, ksize=3)
-    grad_y = cv2.Sobel(greyscale_image, cv2.CV_64FC1, dx=0, dy=1, ksize=3)
-    # grad = cv2.addWeighted(grad_x, 0.5, grad_y, 0.5)
-    orientations = cv2.phase(grad_x, grad_y).astype(np.float32)  # accuracy: about 0.3 degrees
-    hist = cv2.calcHist([orientations], [0], None, [32], [0.0, 2 * pi])
-    return hist
-    # back_proj = cv2.calcBackProject([orientations], [0], hist, [0.0, 2*pi], 1.0)
+    detected_corners = np.array(detected_corners)
+    # return detected_corners
 
-
+    return candidates
