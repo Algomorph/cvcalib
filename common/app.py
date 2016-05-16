@@ -100,8 +100,8 @@ class VideoProcessingApplication(object):
                                  .format(len(intrinsic_arr), len(args.videos)))
 
             self.cameras = [Camera(intrinsics=intrinsics) for intrinsics in intrinsic_arr]
-            if len(initial_calibration) == 1 and (type(initial_calibration[0] == Rig or
-                                                  type(initial_calibration[0]) == MultiStereoRig)):
+            if len(initial_calibration) == 1 and (type(initial_calibration[0]) == Rig or
+                                                  type(initial_calibration[0]) == MultiStereoRig):
                 self.rig = initial_calibration[0]
             else:
                 self.rig = Rig(tuple(self.cameras))

@@ -235,7 +235,8 @@ class ApplicationSynced(CalibrationApplication):
 
         if self.args.load_frame_data:
             self.board_object_corner_set = \
-                cio.load_frame_data(self.aux_data_file, self.videos)
+                cio.load_frame_data(self.aux_data_file, self.videos, self.board_dims[0], self.board_dims[1],
+                                    self.args.board_square_size)
 
             usable_frame_ct = len(self.videos[0].image_points)
 
