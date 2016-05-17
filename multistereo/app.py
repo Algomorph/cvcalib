@@ -20,7 +20,7 @@ limitations under the License.
 
 from common.app import VideoProcessingApplication
 from calib.rig import MultiStereoRig
-from calib.utils import compute_rectification_maps
+from calib.utils import compute_stereo_rectification_maps
 import cv2
 
 
@@ -54,8 +54,8 @@ class MultiStereoApplication(VideoProcessingApplication):
 
     def init_undistortion(self):
         for rig in self.rig.rigs:
-            map1x, map1y, map2x, map2y = compute_rectification_maps(rig, self.videos[0].frame_dims,
-                                                                    MultiStereoApplication.SIZE_FACTOR)
+            map1x, map1y, map2x, map2y = compute_stereo_rectification_maps(rig, self.videos[0].frame_dims,
+                                                                           MultiStereoApplication.SIZE_FACTOR)
             rig.cameras[0].map_x = map1x
             rig.cameras[0].map_y = map1y
             rig.cameras[1].map_x = map2x
