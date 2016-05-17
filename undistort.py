@@ -38,7 +38,7 @@ def main():
     if args.verbose:
         print(calibration_info)
 
-    if type(calibration_info) == Rig:
+    if type(calibration_info) == Rig and len(calibration_info.cameras) == 2:
         if len(args.images) < 2:
             raise ValueError("Got a stereo rig but less than two input images. Aborting.")
         if len(args.output) < 2:
@@ -69,6 +69,8 @@ def main():
         img = cv2.imread(osp.join(args.folder, args.images[0]))
         if type(calibration_info) == Camera:
             calibration_info = calibration_info.intrinsics
+        elif type(calibration_info) == Rig:
+            calibration_info = calibration_info.cameras[0].intrinsics
         if (img.shape[0], img.shape[1]) != calibration_info.resolution:
             raise ValueError("Image size does not correspond to resolution provided in the calibration file.")
 
