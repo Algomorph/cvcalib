@@ -44,6 +44,9 @@ class ApplicationSynced(CalibrationApplication):
         self.video = self.videos[0]
         self.total_frames = min([video.frame_count for video in self.videos])
 
+        if args.input_calibration is None and args.test and len(args.videos) == 1:
+            raise ValueError("Expecting an input calibration for the test mode, got none.")
+
         # TODO: redesign for arbitrary number of videos & cameras
         if len(args.videos) != 1 and len(args.videos) != 2:
             raise ValueError("This calibration tool can only work with single " +
