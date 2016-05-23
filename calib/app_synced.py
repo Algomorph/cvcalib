@@ -283,7 +283,8 @@ class ApplicationSynced(CalibrationApplication):
                   self.args.precalibrate_solo,
                   self.args.stereo_only,
                   self.args.max_iterations,
-                  self.args.input_calibration is not None)
+                  self.args.input_calibration is not None,
+                  self.args.test)
         if len(self.videos) > 1:
             if self.args.preview:
                 l_im = cv2.imread(osp.join(self.args.folder, self.args.preview_files[0]))
