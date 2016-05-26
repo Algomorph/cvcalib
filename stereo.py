@@ -98,6 +98,10 @@ class Setting(Enum):
     input_calibration = Argument(None,
                       arg_help="Path from work folder to left & right calibration files.")
 
+    output = Argument("disparity.png", arg_help="Name of the output disparity image.")
+
+    preview = Argument(False, arg_type='bool_flag', arg_help="Preview the generated disparity map before saving.")
+
     @staticmethod
     def generate_missing_shorthands():
         for item in Setting:
