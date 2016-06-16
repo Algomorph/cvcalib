@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/calib_video_opencv.iml" filepath="$PROJECT_DIR$/.idea/calib_video_opencv.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/cvcalib.iml" filepath="$PROJECT_DIR$/.idea/cvcalib.iml" />
     </modules>
   </component>
 </project>

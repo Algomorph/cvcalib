@@ -10,7 +10,7 @@ import numpy as np
 
 def generate_board_object_points(board_height, board_width, board_square_size):
     board_dims = (board_width, board_height)
-    object_points = np.zeros((board_height*board_width, 1, 3), np.float32)
+    object_points = np.zeros((board_height * board_width, 1, 3), np.float32)
     object_points[:, :, :2] = np.indices(board_dims).T.reshape(-1, 1, 2)
     # convert square sizes to meters
     object_points *= board_square_size
@@ -23,7 +23,14 @@ def homogenize_4vec(vec):
 
 class Pose(object):
     def __init__(self, transform=None, inverse_transform=None, rotation=None, translation_vector=None):
+        if translation_vector is not None:
+            if type(translation_vector) != np.ndarray:
+                translation_vector = np.array(translation_vector)
+            if translation_vector.shape == (3,):
+                translation_vector = translation_vector.reshape((3, 1))
         if rotation is not None:
+            if type(rotation) != np.ndarray:
+                rotation = np.array(rotation)
             if rotation.size == 9:
                 rotation_vector = cv2.Rodrigues(rotation)[0]
                 rotation_matrix = rotation
@@ -31,11 +38,12 @@ class Pose(object):
                 rotation_matrix = cv2.Rodrigues(rotation)[0]
                 rotation_vector = rotation
             else:
-                raise ValueError("Wrong rotation size: {:d}. Expecting a 3-length vector or 3x3 matrix.".format(rotation.size))
+                raise ValueError(
+                    "Wrong rotation size: {:d}. Expecting a 3-length vector or 3x3 matrix.".format(rotation.size))
         if transform is None:
             if translation_vector is None or rotation is None:
                 raise (ValueError("Expecting either the transform matrix or both the rotation & translation vector"))
-            self.T = np.vstack((np.append(rotation_matrix, translation_vector, 1), [0, 0, 0, 1]))
+            self.T = np.vstack((np.append(rotation_matrix, translation_vector, axis=1), [0, 0, 0, 1]))
         else:
             self.T = transform
             if translation_vector is None:
@@ -74,3 +82,7 @@ class Pose(object):
         rotation_matrix_inverse = rotation_matrix.T
         translation_vector_inverse = -rotation_matrix_inverse.dot(translation_vector)
         return np.vstack((np.append(rotation_matrix_inverse, translation_vector_inverse, 1), [0, 0, 0, 1]))
+
+    def __str__(self):
+        return "================\nPose rotation: \n" + str(self.rmat) + "\nTranslation:\n" + str(
+            self.tvec) + "\n===============\n"

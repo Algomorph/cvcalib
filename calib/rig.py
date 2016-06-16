@@ -44,7 +44,7 @@ class Rig(object):
         """
         self.cameras = cameras
         self.extrinsics = extrinsics
-        
+
     def __str__(self):
         representation = "=====" + self.__class__.__name__ + "====="
         ix_camera = 0
@@ -76,7 +76,7 @@ class Rig(object):
 
         for camera in self.cameras:
             camera.to_xml(cameras_elem, as_sequence=True)
-        
+
     @staticmethod
     def from_xml(element):
         """
@@ -137,18 +137,18 @@ class MultiStereoRig(object):
             if len(rig.cameras) % 2 != 0 and len(rig.cameras) != 0:
                 raise ValueError("Expecting a non-zero even number of cameras in the input rig.")
 
-            rigs = [Rig(cameras=(rig.cameras[0],rig.cameras[1],Camera.Extrinsics()))]
+            rigs = [Rig(cameras=(rig.cameras[0], rig.cameras[1], Camera.Extrinsics()))]
 
             # find local extrinsics
             for ix_cam in range(2, len(rig.cameras), 2):
                 left_cam = rig.cameras[ix_cam]
-                right_cam = rig.cameras[ix_cam+1]
+                right_cam = rig.cameras[ix_cam + 1]
                 left_extrinsics = left_cam.extrinsics
                 right_extrinsics = right_cam.extrinsics
                 left_pose = Pose(rotation=left_extrinsics.rotation, translation_vector=left_extrinsics.translation)
                 right_pose = Pose(rotation=right_extrinsics.rotation, translation_vector=right_extrinsics.translation)
                 local_pose = Pose(transform=np.linalg.inv(left_pose.T).dot(right_pose.T))
-                local_right_extrinsics = Camera.Extrinsics(rotation=local_pose.rmat,translation=local_pose.rvec)
+                local_right_extrinsics = Camera.Extrinsics(rotation=local_pose.rmat, translation=local_pose.rvec)
 
                 stereo_rig_extrinsics = left_cam.extrinsics
                 left_cam.extrinsics = Camera.Extrinsics()
