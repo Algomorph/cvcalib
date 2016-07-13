@@ -1,6 +1,6 @@
-# calib_video_opencv
+# cvcalib
 
-Powerful console application for calibration (including stereo calibration) of cameras from video files based on the OpenCV library.
+Powerful console application & python utilities for calibration (including stereo calibration) of cameras from video files based on the OpenCV library.
 
 ###News Update
 
