@@ -53,16 +53,15 @@ def undistort_stereo(stereo_rig, test_im_left, test_im_right, size_factor):
     return rect_left, rect_right
 
 
-def __calibrate_intrinsics(camera, video, object_points, flags, criteria):
+def __calibrate_intrinsics(camera, image_points, object_points, flags, criteria):
     # OpenCV prefers [width x height] as "Size" to [height x width]
-    frame_dims = (video.frame_dims[1], video.frame_dims[0])
-    camera.intrinsics.resolution = video.frame_dims
+    frame_dims = (camera.intrinsics.resolution[1], camera.intrinsics.resolution[0])
     start = time.time()
     camera.intrinsics.error, camera.intrinsics.intrinsic_mat, camera.intrinsics.distortion_coeffs, \
     rotation_vectors, translation_vectors = \
-        cv2.calibrateCamera(object_points, video.image_points, frame_dims,
-                            camera.intrinsics.intrinsic_mat,
-                            camera.intrinsics.distortion_coeffs,
+        cv2.calibrateCamera(objectPoints=object_points, imagePoints=image_points,
+                            imageSize=frame_dims, cameraMatrix=camera.intrinsics.intrinsic_mat,
+                            distCoeffs=camera.intrinsics.distortion_coeffs,
                             flags=flags, criteria=criteria)
     end = time.time()
     camera.intrinsics.time = end - start
@@ -79,7 +78,7 @@ def fix_radial_flags(flags):
     return flags
 
 
-def calibrate_intrinsics(camera, video,
+def calibrate_intrinsics(camera, image_points,
                          object_points,
                          use_rational_model=True,
                          use_tangential=False,
@@ -120,10 +119,10 @@ def calibrate_intrinsics(camera, video,
         flags = flags | cv2.CALIB_THIN_PRISM_MODEL
         if len(camera.intrinsics.distortion_coeffs) != 12:
             camera.intrinsics.distortion_coeffs = np.resize(camera.intrinsics.distortion_coeffs, (12,))
-    return __calibrate_intrinsics(camera, video, object_points, flags, criteria)
+    return __calibrate_intrinsics(camera, image_points, object_points, flags, criteria)
 
 
-def calibrate_stereo(rig, videos,
+def calibrate_stereo(rig, image_point_sets,
                      object_points,
                      use_fisheye=False,
                      use_rational_model=True,
@@ -140,18 +139,22 @@ def calibrate_stereo(rig, videos,
     rig.id = signature
 
     # shorten notation later in the code
-    vid0 = videos[0]
-    vid1 = videos[1]
+    impts0 = image_point_sets[0]
+    impts1 = image_point_sets[1]
 
     cam0 = rig.cameras[0]
     cam1 = rig.cameras[1]
     intrinsics0 = rig.cameras[0].intrinsics
     intrinsics1 = rig.cameras[1].intrinsics
-    intrinsics0.resolution = vid0.frame_dims
-    intrinsics1.resolution = vid1.frame_dims
+
+    if not precalibrate_solo and not stereo_only and intrinsics0.resolution != intrinsics1.resolution:
+        raise ValueError("calibrate_stereo: to ensure proper intrisic matrix intialization," +
+                         " stereo calibration for different-resolution cameras must either use precalibrate_solo flag" +
+                         " or stereo_only flag. In the latter case, cameras in rig should already have " +
+                         " proper intrinsics.")
 
     # OpenCV prefers the Width x Height as "Size" to Height x Width
-    frame_dims = (vid0.frame_dims[1], vid0.frame_dims[0])
+    frame_dims = (intrinsics0.resolution[1], intrinsics0.resolution[0])
 
     # Global flags
     flags = 0
@@ -173,9 +176,9 @@ def calibrate_stereo(rig, videos,
         object_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64)
                                     for point_set in object_points]
         left_image_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64) for point_set in
-                                        vid0.image_points]
+                                        impts0]
         right_image_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64) for point_set in
-                                         vid1.image_points]
+                                         impts1]
         rig.error, intrinsics0.intrinsic_mat, intrinsics0.distortion_coeffs, intrinsics1.intrinsic_mat, \
         intrinsics1.distortion_coeffs, rig.rotation, rig.translation \
             = cv2.fisheye.stereoCalibrate(object_points_transposed,
@@ -210,10 +213,9 @@ def calibrate_stereo(rig, videos,
                 flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
 
         if precalibrate_solo:
-            __calibrate_intrinsics(cam0, vid0, object_points, flags, criteria)
-            __calibrate_intrinsics(cam1, vid1, object_points, flags, criteria)
+            __calibrate_intrinsics(cam0, impts0, object_points, flags, criteria)
+            __calibrate_intrinsics(cam1, impts1, object_points, flags, criteria)
             flags = flags | cv2.CALIB_FIX_INTRINSIC
-
         start = time.time()
         cam1.extrinsics.error, \
         intrinsics0.intrinsic_mat, intrinsics0.distortion_coeffs, \
@@ -221,8 +223,8 @@ def calibrate_stereo(rig, videos,
         cam1.extrinsics.rotation, cam1.extrinsics.translation, \
         cam1.extrinsics.essential_mat, cam1.extrinsics.fundamental_mat \
             = cv2.stereoCalibrate(object_points,
-                                  vid0.image_points,
-                                  vid1.image_points,
+                                  impts0,
+                                  impts1,
                                   cameraMatrix1=intrinsics0.intrinsic_mat,
                                   distCoeffs1=intrinsics0.distortion_coeffs,
                                   cameraMatrix2=intrinsics1.intrinsic_mat,
@@ -234,7 +236,7 @@ def calibrate_stereo(rig, videos,
         cam1.extrinsics.time = end - start
 
 
-def calibrate(rig, videos,
+def calibrate(rig, image_point_sets,
               object_points,
               use_fisheye=False,
               use_rational_model=True,
@@ -247,12 +249,11 @@ def calibrate(rig, videos,
               max_iterations=30,
               use_intrinsic_guess=False,
               test=False):
-    if len(rig.cameras) != len(videos):
+    if len(rig.cameras) != len(image_point_sets):
         raise ValueError("The number of cameras in the rig must be equal to the number of videos.")
     if len(rig.cameras) == 1:
         camera = rig.cameras[0]
-        video = videos[0]
-        calibrate_intrinsics(camera, video,
+        calibrate_intrinsics(camera, image_point_sets[0],
                              object_points,
                              use_rational_model,
                              use_tangential,
@@ -263,7 +264,7 @@ def calibrate(rig, videos,
                              use_intrinsic_guess,
                              test)
     elif len(rig.cameras) == 2:
-        calibrate_stereo(rig, videos,
+        calibrate_stereo(rig, image_point_sets,
                          object_points,
                          use_fisheye,
                          use_rational_model,

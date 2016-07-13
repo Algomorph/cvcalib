@@ -105,6 +105,7 @@ class Rig(object):
                 extrinsics = None
         return Rig(cameras, extrinsics)
 
+# TODO: should contain a StereoRig class which is just a rig with two cameras that has rectification parameters
 
 class MultiStereoRig(object):
     """

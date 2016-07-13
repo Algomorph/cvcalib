@@ -10,8 +10,8 @@ import numpy as np
 
 def generate_board_object_points(board_height, board_width, board_square_size):
     board_dims = (board_width, board_height)
-    object_points = np.zeros((board_height * board_width, 1, 3), np.float32)
-    object_points[:, :, :2] = np.indices(board_dims).T.reshape(-1, 1, 2)
+    object_points = np.zeros((board_height * board_width, 3), np.float32)
+    object_points[:, :2] = np.mgrid[0:board_width, 0:board_height].T.reshape(-1, 2)
     # convert square sizes to meters
     object_points *= board_square_size
     return object_points
@@ -26,8 +26,8 @@ class Pose(object):
         if translation_vector is not None:
             if type(translation_vector) != np.ndarray:
                 translation_vector = np.array(translation_vector)
-            if translation_vector.shape == (3,):
-                translation_vector = translation_vector.reshape((3, 1))
+            if translation_vector.shape != (3, 1):
+                translation_vector = translation_vector.reshape(3, 1)
         if rotation is not None:
             if type(rotation) != np.ndarray:
                 rotation = np.array(rotation)
