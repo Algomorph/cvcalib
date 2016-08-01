@@ -19,7 +19,6 @@ CALIBRATION_INTERVALS = "calibration_intervals"
 def load_frame_data(archive, videos, board_height=None,
                     board_width=None, board_square_size=None,
                     verbose=True):
-
     if verbose:
         print("Loading object & image positions from archive.")
 
@@ -170,6 +169,26 @@ def load_opencv_calibration(path):
 def save_opencv_calibration(path, calibration_info):
     root = etree.Element("opencv_storage")
     calibration_info.to_xml(root)
+    et = etree.ElementTree(root)
+    with open(path, 'wb') as f:
+        et.write(f, encoding="utf-8", xml_declaration=True, pretty_print=True)
+    # little hack necessary to replace the single quotes (that OpenCV doesn't like) with double quotes
+    s = open(path).read()
+    s = s.replace("'", "\"")
+    with open(path, 'w') as f:
+        f.write(s)
+        f.flush()
+
+
+def save_opencv_xml_file(path, xml_generator):
+    """
+    Save something in opencv's XML format
+    @param path: path where to save the file
+    @param xml_generator: function that accepts an LXML root element as a parameter and generates all the necessary XML
+    to go in the file
+    """
+    root = etree.Element("opencv_storage")
+    xml_generator(root)
     et = etree.ElementTree(root)
     with open(path, 'wb') as f:
         et.write(f, encoding="utf-8", xml_declaration=True, pretty_print=True)

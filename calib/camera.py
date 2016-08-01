@@ -42,17 +42,23 @@ def _resolution_to_xml(element, resolution):
     height_elem.text = str(resolution[0])
 
 
-def _error_and_time_from_xml(element):
+def _meta_info_from_xml(element):
     error = float(element.find("error").text)
     time = float(element.find("time").text)
-    return error, time
+    if element.find("calibration_image_count") is not None:
+        calibration_image_count = int(element.find("calibration_image_count").text)
+    else:
+        calibration_image_count = 0
+    return error, time, calibration_image_count
 
 
-def _error_and_time_to_xml(element, error, time):
+def _meta_info_to_xml(element, error, time, calibration_image_count):
     error_element = etree.SubElement(element, "error")
     error_element.text = str(error)
     time_element = etree.SubElement(element, "time")
     time_element.text = str(time)
+    calibration_image_count_element = etree.SubElement(element, "calibration_image_count")
+    calibration_image_count_element.text = str(calibration_image_count)
 
 
 class Camera(object):
@@ -93,6 +99,7 @@ class Camera(object):
             self.error = error
             self.time = time
             self.timestamp = None
+            self.calibration_image_count = 0
 
         def to_xml(self, root_element, as_sequence=False):
             """
@@ -110,14 +117,14 @@ class Camera(object):
             _resolution_to_xml(intrinsics_elem, self.resolution)
             xml.make_opencv_matrix_xml_element(intrinsics_elem, self.intrinsic_mat, "intrinsic_mat")
             xml.make_opencv_matrix_xml_element(intrinsics_elem, self.distortion_coeffs, "distortion_coeffs")
-            _error_and_time_to_xml(intrinsics_elem, self.error, self.time)
+            _meta_info_to_xml(intrinsics_elem, self.error, self.time, self.calibration_image_count)
 
         def __str__(self):
             return (("{:s}\nResolution (h,w): {:s}\n" +
                      "Intrinsic matrix:\n{:s}\nDistortion coefficients:\n{:s}\n" +
-                     "Error: {:f}\nTime: {:f}")
+                     "Error: {:f}\nTime: {:f}\nImage count: {:d}")
                     .format(self.__class__.__name__, str(self.resolution), str(self.intrinsic_mat),
-                            str(self.distortion_coeffs), self.error, self.time))
+                            str(self.distortion_coeffs), self.error, self.time, self.calibration_image_count))
 
         @staticmethod
         def from_xml(element):
@@ -131,7 +138,7 @@ class Camera(object):
             resolution = _resolution_from_xml(element)
             intrinsic_mat = xml.parse_xml_matrix(element.find("intrinsic_mat"))
             distortion_coeffs = xml.parse_xml_matrix(element.find("distortion_coeffs"))
-            error, time = _error_and_time_from_xml(element)
+            error, time = _meta_info_from_xml(element)
             return Camera.Intrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time)
 
     # TODO: Rename to and combine with "Pose" from calib.geom
@@ -158,11 +165,12 @@ class Camera(object):
             self.error = error
             self.time = time
             self.timestamp = None
+            self.calibration_image_count = 0
 
         def __str__(self):
-            return ("{:s}\nRotation:\n{:s}\nTranslation:\n{:s}\nError: {:f}\nTime: {:f}"
+            return ("{:s}\nRotation:\n{:s}\nTranslation:\n{:s}\nError: {:f}\nTime: {:f}\nImage count: {:d}"
                     .format(self.__class__.__name__, str(self.rotation),
-                            str(self.translation), self.error, self.time))
+                            str(self.translation), self.error, self.time, self.calibration_image_count))
 
         def to_xml(self, root_element, as_sequence=False):
             """
@@ -182,7 +190,7 @@ class Camera(object):
 
             xml.make_opencv_matrix_xml_element(extrinsics_elem, self.rotation, "rotation")
             xml.make_opencv_matrix_xml_element(extrinsics_elem, self.translation, "translation")
-            _error_and_time_to_xml(extrinsics_elem, self.error, self.time)
+            _meta_info_to_xml(extrinsics_elem, self.error, self.time, self.calibration_image_count)
 
         @staticmethod
         def from_xml(element):
@@ -198,7 +206,7 @@ class Camera(object):
                 return Camera.Extrinsics()
             rotation = xml.parse_xml_matrix(element.find("rotation"))
             translation = xml.parse_xml_matrix(element.find("translation"))
-            error, time = _error_and_time_from_xml(element)
+            error, time = _meta_info_from_xml(element)
             return Camera.Extrinsics(rotation, translation, error, time)
 
     def __init__(self, resolution=None, intrinsics=None, extrinsics=None):

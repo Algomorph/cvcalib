@@ -17,7 +17,7 @@
  limitations under the License.
 """
 import re
-from lxml import etree#@UnresolvedImport
+from lxml import etree  # @UnresolvedImport
 import numpy as np
 
 
@@ -31,7 +31,7 @@ def make_opencv_matrix_xml_element(root, mat, name):
     @type name: str
     @param name: name of the matrix XML element
     """
-    mat_element = etree.SubElement(root, name, attrib={"type_id":"opencv-matrix"})
+    mat_element = etree.SubElement(root, name, attrib={"type_id": "opencv-matrix"})
     rows_elem = etree.SubElement(mat_element, "rows")
     rows_elem.text = str(mat.shape[0])
     cols_elem = etree.SubElement(mat_element, "cols")
@@ -43,12 +43,20 @@ def make_opencv_matrix_xml_element(root, mat, name):
         dt_elem.text = "f"
     else:
         raise ValueError("dtype " + str(mat.dtype) + "not supported. Expecting float64 or float32.")
-    
+
     data_elem = etree.SubElement(mat_element, "data")
-    data_string = str(mat.flatten()).replace("\n","").replace("[","").replace("]","")
-    data_string = re.sub("\s+"," ",data_string)
+    data_string = str(mat.flatten()).replace("\n", "").replace("[", "").replace("]", "")
+    data_string = re.sub("\s+", " ", data_string)
     data_elem.text = data_string
     return mat_element
+
+
+def make_opencv_size_xml_element(root, sizelike, name):
+    if len(sizelike) != 2:
+        raise ValueError("Expecting a tuple of length 2. Got length {:d}".format(len(tuple)))
+    size_element = etree.SubElement(root, name)
+    size_element.text = str(sizelike[0]) + " " + str(sizelike[1])
+    return size_element
 
 
 def parse_xml_matrix(mat_element):
@@ -63,7 +71,7 @@ def parse_xml_matrix(mat_element):
     elif type_flag == "d":
         dtype = np.float64
     else:
-        raise ValueError("dtype flag " + type_flag + " not supported." )
+        raise ValueError("dtype flag " + type_flag + " not supported.")
     data_string = mat_element.find("data").text
     data = np.array([float(part) for part in data_string.strip().split(" ") if len(part) > 0])
-    return data.reshape((rows,cols)).astype(dtype)
+    return data.reshape((rows, cols)).astype(dtype)

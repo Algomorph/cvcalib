@@ -273,7 +273,7 @@ class ApplicationSynced(CalibrationApplication):
         else:
             print("Calibrating for max. {0:d} iterations...".format(self.args.max_iterations))
         calibrate(self.rig, [video.image_points for video in self.videos],
-                  self.object_points,
+                  self.board_object_corner_set,
                   self.args.use_fisheye_model,
                   self.args.use_rational_model,
                   self.args.use_tangential_coeffs,

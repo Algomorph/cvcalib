@@ -267,9 +267,8 @@ class ApplicationUnsynced(CalibrationApplication):
             if verbose:
                 print("Finding camera poses for video {:s} ... (this may take awhile)".format(video.name))
             video.poses = []
-            object_points = [self.board_object_corner_set for dummy in range(len(camera.image_points))]
             rotations, translations = calibrate_intrinsics(camera, video.image_points,
-                                                           object_points,
+                                                           self.board_object_corner_set,
                                                            self.args.use_rational_model,
                                                            self.args.use_tangential_coeffs,
                                                            self.args.use_thin_prism,
@@ -363,7 +362,7 @@ class ApplicationUnsynced(CalibrationApplication):
             rig.cameras[1].image_points = image_points_tgt
 
             calibrate_stereo(rig, [source_vid.image_points, target_vid.image_points],
-                             self.object_points, self.frame_dims,
+                             self.board_object_corner_set, self.frame_dims,
                              self.args.use_fisheye_model,
                              self.args.use_rational_model,
                              self.args.use_tangential_coeffs,

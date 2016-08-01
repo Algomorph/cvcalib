@@ -54,17 +54,29 @@ def undistort_stereo(stereo_rig, test_im_left, test_im_right, size_factor):
 
 
 def __calibrate_intrinsics(camera, image_points, object_points, flags, criteria):
+    """
+    Calibrate intrinsics of the provided camera using provided image & object points & calibration flags & criteria.
+    @param camera: camera to calibrate
+    @param image_points: points in images taken with the camera that correspond to the 3d object_points.
+    @param object_points: 3d points on the object that appears in *each* of the images.
+    Usually, inner corners of a calibration board. Note: assumes *the same* object appears in all of the images.
+    @param flags: OpenCV camera calibration flags. For details, see OpenCV calib3d documentation, calibrate function.
+    @param criteria: OpenCV criteria.
+    @return: estimated object-space rotation & translation vectors of the camera (assuming object is static)
+    """
     # OpenCV prefers [width x height] as "Size" to [height x width]
     frame_dims = (camera.intrinsics.resolution[1], camera.intrinsics.resolution[0])
     start = time.time()
     camera.intrinsics.error, camera.intrinsics.intrinsic_mat, camera.intrinsics.distortion_coeffs, \
     rotation_vectors, translation_vectors = \
-        cv2.calibrateCamera(objectPoints=object_points, imagePoints=image_points,
+        cv2.calibrateCamera(objectPoints=np.array([object_points]*len(image_points)), imagePoints=image_points,
                             imageSize=frame_dims, cameraMatrix=camera.intrinsics.intrinsic_mat,
                             distCoeffs=camera.intrinsics.distortion_coeffs,
                             flags=flags, criteria=criteria)
     end = time.time()
     camera.intrinsics.time = end - start
+    camera.intrinsics.timestamp = end
+    camera.intrinsics.calibration_image_count = len(image_points)
     return rotation_vectors, translation_vectors
 
 
@@ -138,9 +150,28 @@ def calibrate_stereo(rig, image_point_sets,
     signature = time.strftime("%Y%m%d-%H%M%S", time.localtime())
     rig.id = signature
 
-    # shorten notation later in the code
-    impts0 = image_point_sets[0]
-    impts1 = image_point_sets[1]
+    # compile image point sets in case of disjunct sets
+    if len(image_point_sets) != 2:
+        raise ValueError(
+            "Expecting two total image point sets, each can be list or hash. Got object of length {:d} instead.".format(
+                len(image_point_sets)))
+
+    if type(image_point_sets[0]) == list or type(image_point_sets[0]) == np.ndarray:
+        solo_image_points0 = image_point_sets[0]
+        solo_image_points1 = image_point_sets[1]
+        stereo_image_points0 = image_point_sets[0]
+        stereo_image_points1 = image_point_sets[1]
+        if len(stereo_image_points0) != len(stereo_image_points1):
+            raise ValueError("When passed in as lists, image point sets should have the same length." +
+                             " Got lengths {:d} and {:d} instead.".format(
+                                 len(stereo_image_points0), len(stereo_image_points1)))
+    else:
+        # assume dict
+        solo_image_points0 = np.array(list(image_point_sets[0].values()))
+        solo_image_points1 = np.array(list(image_point_sets[1].values()))
+        frame_number_overlap = list(set(image_point_sets[0].keys()).intersection(set(image_point_sets[1].keys())))
+        stereo_image_points0 = np.array([image_point_sets[0][frame_number] for frame_number in frame_number_overlap])
+        stereo_image_points1 = np.array([image_point_sets[1][frame_number] for frame_number in frame_number_overlap])
 
     cam0 = rig.cameras[0]
     cam1 = rig.cameras[1]
@@ -169,23 +200,17 @@ def calibrate_stereo(rig, image_point_sets,
         precalibrate_solo = False
 
     if use_fisheye:
-        d0 = intrinsics0.distortion_coeffs
-        d1 = intrinsics1.distortion_coeffs
         # this hack is necessary to get around incorrect argument handling for fisheye.stereoCalibrate
         # function in OpenCV
-        object_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64)
-                                    for point_set in object_points]
-        left_image_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64) for point_set in
-                                        impts0]
-        right_image_points_transposed = [np.transpose(point_set, (1, 0, 2)).astype(np.float64) for point_set in
-                                         impts1]
         rig.error, intrinsics0.intrinsic_mat, intrinsics0.distortion_coeffs, intrinsics1.intrinsic_mat, \
         intrinsics1.distortion_coeffs, rig.rotation, rig.translation \
-            = cv2.fisheye.stereoCalibrate(object_points_transposed,
-                                          left_image_points_transposed,
-                                          right_image_points_transposed,
-                                          intrinsics0.intrinsic_mat, d0,
-                                          intrinsics1.intrinsic_mat, d1,
+            = cv2.fisheye.stereoCalibrate([object_points] * len(stereo_image_points0),
+                                          stereo_image_points0,
+                                          stereo_image_points1,
+                                          intrinsics0.intrinsic_mat,
+                                          intrinsics0.distortion_coeffs,
+                                          intrinsics1.intrinsic_mat,
+                                          intrinsics1.distortion_coeffs,
                                           imageSize=frame_dims,
                                           flags=flags,
                                           criteria=criteria)
@@ -213,8 +238,8 @@ def calibrate_stereo(rig, image_point_sets,
                 flags = flags | cv2.CALIB_FIX_S1_S2_S3_S4
 
         if precalibrate_solo:
-            __calibrate_intrinsics(cam0, impts0, object_points, flags, criteria)
-            __calibrate_intrinsics(cam1, impts1, object_points, flags, criteria)
+            __calibrate_intrinsics(cam0, solo_image_points0, object_points, flags, criteria)
+            __calibrate_intrinsics(cam1, solo_image_points1, object_points, flags, criteria)
             flags = flags | cv2.CALIB_FIX_INTRINSIC
         start = time.time()
         cam1.extrinsics.error, \
@@ -222,9 +247,9 @@ def calibrate_stereo(rig, image_point_sets,
         intrinsics1.intrinsic_mat, intrinsics1.distortion_coeffs, \
         cam1.extrinsics.rotation, cam1.extrinsics.translation, \
         cam1.extrinsics.essential_mat, cam1.extrinsics.fundamental_mat \
-            = cv2.stereoCalibrate(object_points,
-                                  impts0,
-                                  impts1,
+            = cv2.stereoCalibrate(np.array([object_points] * len(stereo_image_points0)),
+                                  stereo_image_points0,
+                                  stereo_image_points1,
                                   cameraMatrix1=intrinsics0.intrinsic_mat,
                                   distCoeffs1=intrinsics0.distortion_coeffs,
                                   cameraMatrix2=intrinsics1.intrinsic_mat,
@@ -234,6 +259,8 @@ def calibrate_stereo(rig, image_point_sets,
                                   criteria=criteria)
         end = time.time()
         cam1.extrinsics.time = end - start
+        cam1.extrinsics.timestamp = end
+        cam1.extrinsics.calibration_image_count = len(stereo_image_points0)
 
 
 def calibrate(rig, image_point_sets,
