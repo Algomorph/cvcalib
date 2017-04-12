@@ -2,16 +2,16 @@
 
 Powerful console application & python utilities for calibration (including stereo calibration) of cameras from video files based on the OpenCV library.
 
-###News Update
+### News Update
 
-The master branch is now the upstream development branch. Use tags to get more stable versions.
-Unsynced mode is WIP for the latest tag, don't use it just yet. It uses an algorithm that uses the assumption that cameras are static with respect to each other and the provided intrinsics in order to determine proper time offset between the videos *and* come up with an extrinsics calibration.The preliminary results are promising, and I hope to get a fully-functional version up by Fall 2016.
+The master branch is the upstream development branch. Use tags to get more stable versions.
+Unsynced mode is still experimental. I am not currently supporting it, since I have no use for it currently. If you'd like to contribute, that would be great.
 
-###What the heck is *sync_based_on_audio.py*?
+### What the heck is *sync_based_on_audio.py*?
 
 This is for automated video syncing using sound. Sound has very high temporal resolution, much higher than video. In case the videos for calibration are obtained using cameras that were not genlocked or synchronized in any way, this utility can save you a lot of time spent finding the corresponding frames in the two videos and manually editing them to synchronize them. It finds the offset between the videos by matching groupings of frequency peaks in their audio, seeks out the calibration board (optionally) to determine what to cut off from the start and the end, and automatically recodes the videos for you to input into the provided calibration script. The offset-finding is adapted from Allison Deal's [VideoSync] (https://github.com/allisonnicoledeal/VideoSync).
 
-###What's so powerful about *calibrate_video_opencv.py*?
+### What's so powerful about *calibrate_video_opencv.py*?
 
 It allows you to set various ways to filter off unwanted frames. The most critical is `--frame_count_target=X` or `--ft=X`, where X is an integer, representing approximately how many frames you want to cherry-pick for the calibration. The reason this number is important is that runtime of the OpenCV calibration routine increases with the number of frames you pass it in a faster-than-linear way, i.e. consider a I7-4790K CPU taking about 8 hours to calibrate based on 200 frames. Specifying the target frame number will cause the frame gathering algorithm to skip over even intervals in the video(s) before sifting through frames to pick out the next one to sample.
 
@@ -42,7 +42,7 @@ Using [pip](https://pypi.python.org/pypi/pip), the python packages (marked with 
 
 **Note for Windows Users**: Windows users are recommended to get the required python binaries and their dependencies, including Numpy, at Christoph Gohlke's page [Unofficial Python Extensions for Windows](http://www.lfd.uci.edu/~gohlke/pythonlibs/). These can be installed via the `pip wheel <package_file_path>` command from a command prompt with administrative privileges.
 
-###Usage
+### Usage
 
 *calibrate_video_opencv.py*:
 See output of `python calib_video_opencv.py --help` (again, python 3 is usually evoked via `python3` on Linux). In most Linux/Unix shells, you can also run `./calib_video_opencv.py --help` provided you grant the file necessary permissions.
@@ -50,11 +50,11 @@ See output of `python calib_video_opencv.py --help` (again, python 3 is usually 
 *calibrate_video_opencv.py*:
 See output of `python sync_based_on_audio.py --help`, all notes above for the calibration script also apply.
 
-#####The provided calibration board
+##### The provided calibration board
 
 The default calibration board provided (checkerboard.pdf) is a small 9x6 checkerboard that can be easily printed on 8.5x11" US Letter paper or standard A4 paper. Print without scaling, and double-check resulting square size (against the default program settings). Checkerboard square dimensions and size can be set as command-line arguments or via settings file (see above and below).
 
-#####Using the resulting calibration file
+##### Using the resulting calibration file
 
 The resulting calibration file can be read back in by adapting the same python code (check the XML module), but the format is also fully-compatible with OpenCV's XML input-output utilities, so you can read it from your C++ OpenCV applications or libraries. Here is some ugly C++ code that does that for your convenience:
 
@@ -88,7 +88,7 @@ im_size = cv::Size(static_cast<int>(intrinsics_0_node["resolution"]["width"]),
 ```
 
 
-###Calibration Tips
+### Calibration Tips
 Calibration experts: skip this section.
 
 The provided tiny calibration board will only work well for calibrating at short distances (within half a meter or so). I recommend a larger calibration board, with larger and more squares for greater distances. Any calibration board should be snugly mounted on a completely flat, unbending surface. During calibration, aim for variety of angles and positions (including depth) of the board within the image frame. Calibration of cameras with auto-focus is not supported, since the algorithm assumes camera intrinsics (including focal distance) are static. On such cameras, you have to find a way to fix the focus. Also, keep in mind, calibration process does not yield actual focal length (look to your camera manufacturer for that information, as well as the actual metric size of the image sensor).
