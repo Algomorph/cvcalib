@@ -21,7 +21,7 @@ Another useful feature is saving/loading of cherry-picked frames and/or checkerb
 
 Finally, because there are so many command-line options, there is a simple way to save all the settings in a YAML settings file, to avoid re-entering them later. The setting file may subsequently be overridden by and/or updated with the alternative settings passed as command-line arguments.
 
-###Requirements
+### Requirements
 *calibrate_video_opencv.py*:
 * [Python 3.4](https://www.python.org/) or newer
 * [OpenCV 3](http://opencv.org/) built with Python 3 support and properly installed.
