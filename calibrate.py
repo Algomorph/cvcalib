@@ -76,8 +76,9 @@ class Argument(object):
         else:
             self.shorthand = "-" + shorthand
 
-#TODO: investigate enum inheritance. There is too much duplicate code between this script file and others, like
-#sync_based_on_audio.py and multistereo.py
+
+# TODO: investigate enum inheritance. There is too much duplicate code between this script file and others, like
+# sync_based_on_audio.py and multistereo.py
 class Setting(Enum):
     # ================= SETTING FILE STORAGE ==========================================================================#
     settings_file = Argument(None, '?', str, 'store',
@@ -271,6 +272,7 @@ class Setting(Enum):
         @param defaults: dictionary of default settings and their values.
         For a conf-file+console parser, these come from the config file. For a console-only parser, these are generated.
         @type console_only: bool
+        @param console_only: accept only command-line/terminal arguments, not a configuration file
         @type description: str
         @param description: description of the program that uses the parser, to be used in the help file
         @type parents: list[argparse.ArgumentParser] | None
@@ -365,7 +367,6 @@ def main():
         setting_dict[Setting.save_settings.name] = file_name
         setting_dict[Setting.settings_file.name] = True
 
-
     if args.unsynced:
         app = ApplicationUnsynced(args)
         app.gather_frame_data()
@@ -374,6 +375,7 @@ def main():
         app = ApplicationSynced(args)
         app.gather_frame_data()
         app.run_calibration()
+    return 0
 
 
 if __name__ == "__main__":

@@ -73,7 +73,7 @@ class Camera(object):
 
         def __init__(self, resolution, intrinsic_mat=None,
                      distortion_coeffs=None,
-                     error=-1.0, time=0.0):
+                     error=-1.0, time=0.0, calibration_image_count=0):
             """
             Constructor
             @type intrinsic_mat: numpy.ndarray
@@ -99,7 +99,7 @@ class Camera(object):
             self.error = error
             self.time = time
             self.timestamp = None
-            self.calibration_image_count = 0
+            self.calibration_image_count = calibration_image_count
 
         def to_xml(self, root_element, as_sequence=False):
             """
@@ -138,13 +138,13 @@ class Camera(object):
             resolution = _resolution_from_xml(element)
             intrinsic_mat = xml.parse_xml_matrix(element.find("intrinsic_mat"))
             distortion_coeffs = xml.parse_xml_matrix(element.find("distortion_coeffs"))
-            error, time = _meta_info_from_xml(element)
-            return Camera.Intrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time)
+            error, time, calibration_image_count = _meta_info_from_xml(element)
+            return Camera.Intrinsics(resolution, intrinsic_mat, distortion_coeffs, error, time, calibration_image_count)
 
     # TODO: Rename to and combine with "Pose" from calib.geom
 
     class Extrinsics(object):
-        def __init__(self, rotation=None, translation=None, error=-1.0, time=0.0):
+        def __init__(self, rotation=None, translation=None, error=-1.0, time=0.0, calibration_image_count=0):
             """
             Constructor
             @type rotation: numpy.ndarray
@@ -165,7 +165,7 @@ class Camera(object):
             self.error = error
             self.time = time
             self.timestamp = None
-            self.calibration_image_count = 0
+            self.calibration_image_count = calibration_image_count
 
         def __str__(self):
             return ("{:s}\nRotation:\n{:s}\nTranslation:\n{:s}\nError: {:f}\nTime: {:f}\nImage count: {:d}"
@@ -206,8 +206,8 @@ class Camera(object):
                 return Camera.Extrinsics()
             rotation = xml.parse_xml_matrix(element.find("rotation"))
             translation = xml.parse_xml_matrix(element.find("translation"))
-            error, time = _meta_info_from_xml(element)
-            return Camera.Extrinsics(rotation, translation, error, time)
+            error, time, calibration_image_count = _meta_info_from_xml(element)
+            return Camera.Extrinsics(rotation, translation, error, time, calibration_image_count)
 
     def __init__(self, resolution=None, intrinsics=None, extrinsics=None):
         """
