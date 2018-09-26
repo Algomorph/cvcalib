@@ -11,7 +11,7 @@ Unsynced mode is still experimental. I am not currently supporting it, since I h
 
 This is for automated video syncing using sound. Sound has very high temporal resolution, much higher than video. In case the videos for calibration are obtained using cameras that were not genlocked or synchronized in any way, this utility can save you a lot of time spent finding the corresponding frames in the two videos and manually editing them to synchronize them. It finds the offset between the videos by matching groupings of frequency peaks in their audio, seeks out the calibration board (optionally) to determine what to cut off from the start and the end, and automatically recodes the videos for you to input into the provided calibration script. The offset-finding is adapted from Allison Deal's [VideoSync] (https://github.com/allisonnicoledeal/VideoSync).
 
-### What's so powerful about *calibrate_video_opencv.py*?
+### What's so powerful about *calibrate.py*?
 
 It allows you to set various ways to filter off unwanted frames. The most critical is `--frame_count_target=X` or `--ft=X`, where X is an integer, representing approximately how many frames you want to cherry-pick for the calibration. The reason this number is important is that runtime of the OpenCV calibration routine increases with the number of frames you pass it in a faster-than-linear way, i.e. consider a I7-4790K CPU taking about 8 hours to calibrate based on 200 frames. Specifying the target frame number will cause the frame gathering algorithm to skip over even intervals in the video(s) before sifting through frames to pick out the next one to sample.
 
@@ -22,7 +22,7 @@ Another useful feature is saving/loading of cherry-picked frames and/or checkerb
 Finally, because there are so many command-line options, there is a simple way to save all the settings in a YAML settings file, to avoid re-entering them later. The setting file may subsequently be overridden by and/or updated with the alternative settings passed as command-line arguments.
 
 ### Requirements
-*calibrate_video_opencv.py*:
+*calibrate.py*:
 * [Python 3.4](https://www.python.org/) or newer
 * [OpenCV 3](http://opencv.org/) built with Python 3 support and properly installed.
 * [Lxml](http://lxml.de/) *
